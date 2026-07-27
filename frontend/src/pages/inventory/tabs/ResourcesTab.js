@@ -1,0 +1,178 @@
+import React from 'react';
+import { Eye, Server } from 'lucide-react';
+import { TableVirtuoso } from 'react-virtuoso';
+import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
+import { FilterBar } from '../../../components/ui/FilterBar';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { getResources } from '../../../api/inventory';
+import { getStrategy } from '../../../utils/cloud-strategies';
+
+export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, dynamicRegions, setSelectedResource, provider, account, topFilters }) {
+  const [resources, setResources] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [offset, setOffset] = React.useState(0);
+  const [localDynamicRegions, setLocalDynamicRegions] = React.useState([]);
+  const [localDynamicTypes, setLocalDynamicTypes] = React.useState([]);
+  
+  const strategy = getStrategy(provider);
+  const localDynamicGroups = React.useMemo(() => {
+    const groupCounts = {};
+    localDynamicTypes.forEach(t => {
+      const g = strategy.getResourceGroup(t.type, '');
+      if (g) groupCounts[g] = (groupCounts[g] || 0) + t.count;
+    });
+    return Object.entries(groupCounts)
+      .map(([group, count]) => ({ group, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [localDynamicTypes, strategy]);
+  
+  
+  
+  const LIMIT = 50;
+
+  const fetchResources = React.useCallback(async (reset = false) => {
+    if (loading || (!hasMore && !reset)) return;
+    setLoading(true);
+
+    try {
+      const currentOffset = reset ? 0 : offset;
+
+      // If group is selected but no specific type, get all types in that group
+      let typeParam = filter.type;
+      if (filter.group !== 'All' && filter.type === 'All') {
+        const strategy = getStrategy(provider);
+        const groupTypes = localDynamicTypes
+          .filter(t => strategy.getResourceGroup(t.type, '') === filter.group)
+          .map(t => t.type);
+        if (groupTypes.length > 0) {
+          typeParam = groupTypes.join(',');
+        } else {
+          // No types match this group, so return empty immediately
+          setResources(reset ? [] : resources);
+          setHasMore(false);
+          setLoading(false);
+          return;
+        }
+      }
+
+      console.log("Fetching resources with typeParam:", typeParam, "filter:", filter);
+
+      const res = await getResources(
+        provider,
+        null, // configId
+        typeParam,
+        filter.region === 'All' ? topFilters.region : filter.region,
+        filter.billable,
+        account,
+        'active',
+        LIMIT,
+        currentOffset,
+        topFilters.linked,
+        topFilters.tag,
+        filter.time
+      );
+
+      const newResources = res.data.resources;
+      
+      if (res.data.region_breakdown && filter.region === 'All') {
+        setLocalDynamicRegions(res.data.region_breakdown);
+      }
+      if (res.data.type_breakdown && filter.type === 'All' && filter.group === 'All') {
+        setLocalDynamicTypes(res.data.type_breakdown);
+      }
+      
+      setResources(prev => reset ? newResources : [...prev, ...newResources]);
+      setOffset(currentOffset + LIMIT);
+      setHasMore(newResources.length === LIMIT);
+    } catch (e) {
+      console.error("Failed to fetch paginated resources", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [account, provider, filter, topFilters, offset, loading, hasMore, dynamicTypes, resources]);
+
+  // Reset and fetch when filters change
+  React.useEffect(() => {
+    setHasMore(true);
+    setOffset(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, provider, filter, topFilters]);
+
+  // Actually trigger the fetch when offset is 0 and hasMore is true (meaning a reset just happened)
+  React.useEffect(() => {
+    if (offset === 0 && hasMore && !loading) {
+      fetchResources(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset, hasMore, fetchResources]);
+
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      fetchResources(false);
+    }
+  };
+  return (
+    <div>
+      <FilterBar
+        showLabel={true}
+        className="flex items-center gap-4 mb-5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50"
+        filters={[
+          { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Services', value: 'All' }, ...localDynamicGroups.map(g => ({ label: `${g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[160px]" },
+          { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...(filter.group === 'All' ? [] : localDynamicTypes.filter(t => strategy.getResourceGroup(t.type, '') === filter.group).map(t => ({ label: `${formatType(t.type, provider)} (${t.count})`, value: t.type })))], width: "max-w-[200px]" },
+          { label: "Region:", value: filter.region, onChange: v => setFilter({ ...filter, region: v }), options: [{ label: 'All Regions', value: 'All' }, ...localDynamicRegions.map(r => ({ label: `${r.region} (${r.count})`, value: r.region }))], width: "max-w-[160px]" },
+          { label: "Billable:", value: filter.billable, onChange: v => setFilter({ ...filter, billable: v }), options: [{ label: 'All Statuses', value: 'All' }, { label: 'Billable', value: 'true' }, { label: 'Non-Billable', value: 'false' }], width: "w-[90px]" },
+          { label: "Time:", value: filter.time, onChange: v => setFilter({ ...filter, time: v }), options: [{ label: 'All Time', value: 'All' }, { label: 'Today', value: 'Today' }], width: "w-[70px]" }
+        ]}
+      />
+
+      <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
+        {resources.length > 0 ? (
+          <TableVirtuoso
+            useWindowScroll={!document.getElementById('main-scroll-container')}
+            customScrollParent={document.getElementById('main-scroll-container')}
+            data={resources}
+            endReached={loadMore}
+            components={{
+              Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-900/80 backdrop-blur-md z-20 shadow-sm border-b border-zinc-800/50" style={{ ...props.style, top: '-1.5rem' }} />),
+              TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
+              TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),
+            }}
+            fixedHeaderContent={() => (
+              <tr>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%]">Identifier</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%]">Type</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%]">Region</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Billable</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Actions</th>
+              </tr>
+            )}
+            itemContent={(index, r) => (
+              <>
+                <td className="px-4 py-3 truncate">
+                  <div className="text-sm font-semibold text-white truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
+                  <div className="text-[10px] text-zinc-500 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-xs px-2 py-1 bg-zinc-800/50 text-zinc-300 rounded border border-zinc-700/50">{formatType(r.resource_type, r.provider)}</span>
+                </td>
+                <td className="px-4 py-3 text-xs text-zinc-400">{r.region}</td>
+                <td className="px-4 py-3">
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${r.billable ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-700/50 text-zinc-500'}`}>{r.billable ? 'Yes' : 'No'}</span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button onClick={() => setSelectedResource(r)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-md transition-colors">
+                    <Eye className="h-3 w-3" /> View
+                  </button>
+                </td>
+              </>
+            )}
+          />
+        ) : (
+          <EmptyState icon={Server} message="No resources found." height="h-full" />
+        )}
+      </div>
+    </div>
+  );
+}

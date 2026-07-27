@@ -1,0 +1,354 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { RefreshCw, Plus, Minus, Globe, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { getAdvancedSummary, getChanges, getTrend, triggerSync, wipeDatabase, getFilterOptions } from '../../api/inventory';
+import { apiClient } from '../../api/api';
+import { OverviewTab as Overview } from './tabs/OverviewTab';
+import { ChangesTab as Changes } from './tabs/ChangesTab';
+import { ResourcesTab as Resources } from './tabs/ResourcesTab';
+import { DeletedTab as Deleted } from './tabs/DeletedTab';
+import { ResourceDetailModal } from './ResourceDetailModal';
+import TopFilters from './TopFilters';
+import { getStrategy } from '../../utils/cloud-strategies';
+import { Kpi } from '../../components/ui/Kpi';
+
+import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
+
+export default function InventoryPage() {
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState('');
+  const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+
+  const [topFilters, setTopFilters] = useState({
+    provider: '',
+    region: 'All Regions',
+    linked: 'All Accounts',
+    tag: 'All',
+    range: 30
+  });
+
+  const [serverSummary, setServerSummary] = useState(null);
+  const [filterOptions, setFilterOptions] = useState({ availableRegions: [], availableLinked: [], availableTags: [] });
+  const [trend, setTrend] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  // Fetch Filter Options once per account
+  useEffect(() => {
+    if (!selectedAccount) return;
+    const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+    if (!activeConfig) return;
+
+    getFilterOptions(selectedAccount, activeConfig.provider).then(res => {
+      setFilterOptions({
+        availableRegions: res.data.regions || [],
+        availableLinked: res.data.linked_accounts || [],
+        availableTags: res.data.tags || []
+      });
+    }).catch(e => console.error(e));
+  }, [selectedAccount, accounts]);
+
+  // Fetch Summary when top filters change
+  const loadSummary = useCallback(async () => {
+    if (!selectedAccount) return;
+    const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+    if (!activeConfig) return;
+
+    setLoading(true);
+    try {
+      const summaryRes = await getAdvancedSummary(
+        selectedAccount,
+        activeConfig.provider,
+        topFilters.region,
+        topFilters.linked,
+        topFilters.tag
+      );
+      setServerSummary(summaryRes.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedAccount, accounts, topFilters.region, topFilters.linked, topFilters.tag]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
+  const [tab, setTab] = useState('overview');
+  const [resourceFilter, setResourceFilter] = useState({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
+  const [deletedFilter, setDeletedFilter] = useState({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
+  const filter = tab === 'deleted' ? deletedFilter : resourceFilter;
+  const [selectedResource, setSelectedResource] = useState(null);
+  const [crossFilterType, setCrossFilterType] = useState(null);
+  const [pieGroupFilter, setPieGroupFilter] = useState(null);
+
+  useEffect(() => {
+    if (selectedAccount && !loading) {
+      const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+      if (activeConfig) {
+        getTrend(activeConfig.provider, null, 30, selectedAccount, crossFilterType).then(t => setTrend(t.data?.trend || []));
+      }
+    }
+  }, [crossFilterType, selectedAccount, accounts, loading]);
+
+  useEffect(() => {
+    apiClient.get('/cloud-config/').then(res => {
+      const accs = res.data || [];
+      setAccounts(accs);
+      if (accs.length > 0) {
+        const savedAccountName = localStorage.getItem('pulse_inventory_account');
+        const match = accs.find(a => a.account_name === savedAccountName);
+        if (match) {
+          setSelectedAccount(match.account_name);
+          setTopFilters(prev => ({ ...prev, provider: (match.provider || '').toUpperCase() }));
+        } else {
+          setSelectedAccount(accs[0].account_name);
+          setTopFilters(prev => ({ ...prev, provider: (accs[0].provider || '').toUpperCase() }));
+        }
+      } else {
+        setLoading(false);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedAccount) {
+      localStorage.setItem('pulse_inventory_account', selectedAccount);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount]);
+
+  useEffect(() => {
+    if (!selectedAccount) return;
+    const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+    if (!activeConfig) return;
+
+    getTrend(activeConfig.provider, null, topFilters.range, selectedAccount)
+      .then(t => setTrend(t.data?.trend || []))
+      .catch(e => console.error("Failed to fetch trend", e));
+  }, [selectedAccount, topFilters.range, accounts]);
+
+  const sync = async () => {
+    const activeConfig = accounts.find(a => a.account_name === selectedAccount);
+    if (!activeConfig) return;
+
+    setSyncing(true);
+    try {
+      const r = await triggerSync(activeConfig.provider, activeConfig.id);
+
+      if (r.data.message) {
+        toast.warning(r.data.message, { duration: 5000 });
+      }
+
+      toast.success(`Synced ${r.data.metrics.total_active} resources • ${r.data.metrics.created} new • ${r.data.metrics.deleted} deleted`);
+      loadSummary();
+      getTrend(activeConfig.provider, null, topFilters.range, selectedAccount).then(t => setTrend(t.data?.trend || []));
+    } catch (e) { toast.error(e.response?.data?.detail || 'Sync failed'); }
+    finally { setSyncing(false); }
+  };
+
+  const handleWipe = async () => {
+    if (!window.confirm(`Are you sure you want to completely wipe all database records for ${selectedAccount}? This is permanent.`)) return;
+    try {
+      await wipeDatabase(selectedAccount, topFilters.provider);
+      toast.success(`${selectedAccount} data wiped successfully`);
+      loadSummary();
+    } catch (e) { toast.error("Wipe failed"); }
+  };
+
+
+  const filteredTrend = useMemo(() => {
+    if (!trend.length) return [];
+    // The backend already filters to topFilters.range days, so we just use the result directly
+    const result = [...trend];
+
+    if (result.length > 0) {
+      const lastPoint = result[result.length - 1];
+      const lastDate = new Date(lastPoint.raw_date || lastPoint.date);
+      const today = new Date();
+
+      // If the last snapshot is older than today, push a data point for right now to draw a flat line
+      if (lastDate.toDateString() !== today.toDateString()) {
+        result.push({
+          ...lastPoint,
+          raw_date: today.toISOString(),
+          date: today.toISOString()
+        });
+      } else if (result.length === 1) {
+        // If there's only 1 point and it was taken today, we still need 2 points to draw an area graph.
+        // Prepend a point at the very start of today so it draws a flat line across today.
+        const startOfDay = new Date(today);
+        startOfDay.setHours(0, 0, 0, 0);
+        if (new Date(lastPoint.raw_date || lastPoint.date) > startOfDay) {
+          result.unshift({
+            ...lastPoint,
+            raw_date: startOfDay.toISOString(),
+            date: startOfDay.toISOString()
+          });
+        }
+      }
+    }
+
+    return result;
+  }, [trend]);
+
+
+
+
+  if (loading) return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  let donut = [];
+  const strategy = getStrategy(topFilters.provider);
+
+  // Compute group breakdown from type_breakdown
+  const groupCounts = {};
+  (serverSummary?.type_breakdown || []).forEach(t => {
+    const g = strategy.getResourceGroup(t.type, '');
+    groupCounts[g] = (groupCounts[g] || 0) + t.count;
+  });
+  const computedGroupBreakdown = Object.keys(groupCounts)
+    .map(k => ({ group: k, count: groupCounts[k] }))
+    .sort((a, b) => b.count - a.count);
+
+  if (!pieGroupFilter) {
+    const sorted = computedGroupBreakdown;
+    if (sorted.length > 8) {
+      const top = sorted.slice(0, 7);
+      const otherCount = sorted.slice(7).reduce((sum, g) => sum + g.count, 0);
+      donut = top.map(g => ({ name: g.group, value: g.count }));
+      donut.push({ name: 'Other', value: otherCount });
+    } else {
+      donut = sorted.map(g => ({ name: g.group, value: g.count }));
+    }
+  } else {
+    // Filter type_breakdown by the selected group to show sub-types
+    const top7Groups = computedGroupBreakdown.slice(0, 7).map(g => g.group);
+
+    const typeBreakdown = {};
+    (serverSummary?.type_breakdown || []).forEach(t => {
+      const g = strategy.getResourceGroup(t.type, '');
+      const belongs = pieGroupFilter === 'Other' ? !top7Groups.includes(g) : g === pieGroupFilter;
+      if (belongs) {
+        typeBreakdown[t.type] = (typeBreakdown[t.type] || 0) + t.count;
+      }
+    });
+
+    const sortedTypes = Object.keys(typeBreakdown)
+      .map(k => ({ name: k, value: typeBreakdown[k] }))
+      .sort((a, b) => b.value - a.value);
+
+    if (sortedTypes.length > 8) {
+      const top = sortedTypes.slice(0, 7);
+      const otherCount = sortedTypes.slice(7).reduce((sum, t) => sum + t.value, 0);
+      donut = [...top, { name: 'Other', value: otherCount }];
+    } else {
+      donut = sortedTypes;
+    }
+  }
+  const tagDonut = [
+    { name: 'Tagged', value: serverSummary?.tagged || 0 },
+    { name: 'Untagged', value: serverSummary?.untagged || 0 }
+  ];
+
+  const canDrillDown = (groupName) => {
+    // With server-side pagination, we don't have globalFilteredActive anymore.
+    // Instead we rely on computedGroupBreakdown - if a group exists, we can click it.
+    // However, if we need to know if there's >1 type in this group, we can check serverSummary.type_breakdown.
+    if (groupName === 'Other') return true;
+    const strategy = getStrategy(topFilters.provider);
+    const typesInGroup = (serverSummary?.type_breakdown || [])
+      .filter(t => strategy.getResourceGroup(t.type, '') === groupName);
+    return typesInGroup.length > 1;
+  };
+
+  const dynamicGroups = computedGroupBreakdown;
+  const dynamicTypes = (serverSummary?.type_breakdown || [])
+    .filter(t => filter.group === 'All' || strategy.getResourceGroup(t.type, '') === filter.group)
+    .sort((a, b) => b.count - a.count);
+  const dynamicRegions = (serverSummary?.region_breakdown || []);
+
+  return (
+    <div className="space-y-6 relative">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            Resource Inventory
+          </h1>
+          <p className="text-sm text-zinc-500">Track all cloud resources • Detect daily changes</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={handleWipe} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-red-600/10 text-red-400 rounded-lg hover:bg-red-600/20">
+            <Trash2 className="h-3.5 w-3.5" /> Wipe DB
+          </button>
+          <button onClick={sync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
+          </button>
+        </div>
+      </div>
+
+      <TopFilters
+        topFilters={topFilters}
+        setTopFilters={setTopFilters}
+        selectedAccount={selectedAccount}
+        setSelectedAccount={setSelectedAccount}
+        accounts={accounts}
+        availableRegions={filterOptions.availableRegions}
+        availableLinked={filterOptions.availableLinked}
+        availableTags={filterOptions.availableTags}
+      />
+
+      <div className="grid grid-cols-6 gap-2.5">
+        <Kpi label="Total Active" value={serverSummary?.total || 0} />
+        <Kpi label="Billable" value={serverSummary?.billable || 0} color="text-blue-400" />
+        <Kpi label="Non-Billable" value={serverSummary?.non_billable || 0} color="text-zinc-400" />
+        <Kpi label="New Today" value={serverSummary?.new_today || 0} color="text-green-400" icon={<Plus className="h-3 w-3" />} onClick={() => { setTab('resources'); setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' }); }} />
+        <Kpi label="Deleted Today" value={serverSummary?.deleted_today || 0} color="text-red-400" icon={<Minus className="h-3 w-3" />} onClick={() => { setTab('deleted'); setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' }); }} />
+        <Kpi label="Regions" value={(serverSummary?.region_breakdown || []).length} color="text-cyan-400" icon={<Globe className="h-3 w-3" />} />
+      </div>
+
+      <div className="border-b border-zinc-800 flex gap-6">
+        {['overview', 'changes', 'resources', 'deleted'].map(t => (
+          <button
+            key={t}
+            onClick={() => {
+              setTab(t);
+              if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
+              if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
+            }}
+            className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${tab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <Overview
+          summary={serverSummary}
+          filteredTrend={filteredTrend}
+          donut={donut}
+          tagDonut={tagDonut}
+          pieGroupFilter={pieGroupFilter}
+          setPieGroupFilter={setPieGroupFilter}
+          crossFilterType={crossFilterType}
+          setCrossFilterType={setCrossFilterType}
+          canDrillDown={canDrillDown}
+          topFilters={topFilters}
+          setTopFilters={setTopFilters}
+          selectedAccount={selectedAccount}
+        />
+      )}
+      {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
+      {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
+      {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
+
+      <ScrollToTopButton />
+
+      <ResourceDetailModal
+        selectedResource={selectedResource}
+        setSelectedResource={setSelectedResource}
+      />
+    </div>
+  );
+}
