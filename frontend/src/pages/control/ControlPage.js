@@ -80,12 +80,9 @@ export default function ControlPage() {
   };
 
   const loadLogs = async () => {
-    try {
-      const logs = await listAuditLogs();
-      setAuditLogs(logs || []);
-    } catch (err) {
-      console.error("Failed to load audit logs", err);
-    }
+    // Action logging is handled internally by tabs, but if needed for global refresh, we could trigger an event.
+    // We pass this as onActionLogged to ResourcesTab, so it can just trigger a refresh if needed.
+    // Actually, since ActivityLogTab loads its own data on mount, we don't need global state.
   };
 
   const loadConfigs = async () => {
@@ -142,7 +139,9 @@ export default function ControlPage() {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-6xl mx-auto p-0 relative">
+    <>
+      <div className="sticky -top-6 h-6 -mx-6 -mt-6 bg-[#0a0a0f]/80 backdrop-blur-md z-30 pointer-events-none" />
+      <div className="space-y-6 w-full max-w-6xl mx-auto p-0 relative">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -197,7 +196,7 @@ export default function ControlPage() {
             activeSchedulesCount={summary.active_schedules_count}
           />
         )}
-        {activeTab === 'activity' && <ActivityLogTab logs={auditLogs} topFilters={topFilters} />}
+        {activeTab === 'activity' && <ActivityLogTab topFilters={topFilters} />}
         {activeTab === 'resources' && (
           <ResourcesTab
             topFilters={topFilters}
@@ -206,5 +205,6 @@ export default function ControlPage() {
         )}
       </div>
     </div>
+    </>
   );
 }

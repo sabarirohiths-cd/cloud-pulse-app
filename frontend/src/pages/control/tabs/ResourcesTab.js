@@ -242,14 +242,16 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
       </div>
 
       {/* Table */}
-      <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl overflow-hidden shadow-xl h-[600px]">
+      <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl shadow-xl">
         {filteredResources.length > 0 ? (
           <TableVirtuoso
+            useWindowScroll={!document.getElementById('main-scroll-container')}
+            customScrollParent={document.getElementById('main-scroll-container')}
             data={filteredResources}
             endReached={loadMore}
             components={{
               Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-950/90 backdrop-blur-sm z-10 text-zinc-400 border-b border-zinc-800 uppercase text-[10px]" />),
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-950/80 backdrop-blur-md z-20 text-zinc-400 border-b border-zinc-800 uppercase text-[10px]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/60 text-zinc-300" />),
             }}

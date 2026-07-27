@@ -257,8 +257,34 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
         raise e
 
 @router.get("/audit-logs")
-async def list_audit_logs(limit: int = 50, db: AsyncSession = Depends(get_db)):
-    stmt = select(ControlActionLog).order_by(ControlActionLog.timestamp.desc()).limit(limit)
+async def list_audit_logs(
+    account_name: Optional[str] = None,
+    event_type: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = Query(50), 
+    offset: int = Query(0), 
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ControlActionLog)
+    
+    if account_name and account_name != 'All Accounts':
+        stmt = stmt.where(ControlActionLog.account_name == account_name)
+        
+    if event_type and event_type != 'All':
+        if event_type == 'power':
+            stmt = stmt.where(ControlActionLog.action_type.like('MANUAL_%'))
+        elif event_type == 'schedule':
+            stmt = stmt.where(ControlActionLog.action_type == 'SCHEDULE_UPDATED')
+            
+    if search:
+        search_term = f"%{search}%"
+        stmt = stmt.where(
+            (ControlActionLog.native_id.ilike(search_term)) |
+            (ControlActionLog.resource_name.ilike(search_term)) |
+            (ControlActionLog.action_type.ilike(search_term))
+        )
+        
+    stmt = stmt.order_by(ControlActionLog.timestamp.desc()).limit(limit).offset(offset)
     res = await db.execute(stmt)
     logs = res.scalars().all()
     return logs

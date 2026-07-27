@@ -57,8 +57,13 @@ export const logAction = async (payload) => {
   return response.data;
 };
 
-export const listAuditLogs = async (limit = 50) => {
-  const response = await apiClient.get('/control/audit-logs', { params: { limit } });
+export const listAuditLogs = async (filters = {}, limit = 50, offset = 0) => {
+  const params = { limit, offset };
+  if (filters.account && filters.account !== 'All Accounts') params.account_name = filters.account;
+  if (filters.eventType && filters.eventType !== 'All') params.event_type = filters.eventType;
+  if (filters.search) params.search = filters.search;
+
+  const response = await apiClient.get('/control/audit-logs', { params });
   return response.data;
 };
 

@@ -132,7 +132,7 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
             endReached={loadMore}
             components={{
               Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-900/80 backdrop-blur-md z-20 shadow-sm border-b border-zinc-800/50" style={{ ...props.style, top: '-1.5rem' }} />),
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-900/80 backdrop-blur-md z-20 shadow-sm border-b border-zinc-800/50" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),
             }}

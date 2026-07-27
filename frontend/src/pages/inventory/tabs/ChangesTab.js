@@ -63,7 +63,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
-      <div className="sticky -top-6 z-20 bg-zinc-900/90 backdrop-blur-md rounded-t-xl px-5 py-3 border-b border-zinc-800/50 flex justify-between items-center shrink-0">
+      <div className="sticky top-0 z-20 bg-zinc-900/90 backdrop-blur-md rounded-t-xl px-5 py-3 border-b border-zinc-800/50 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-4">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             Recent Changes

@@ -1,10 +1,11 @@
 import React from 'react';
-import { TrendingUp, Server, Tag as TagIcon } from 'lucide-react';
+import { TrendingUp, Server, Tag as TagIcon, Plus, Minus, Globe } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { formatType } from '../../../utils/ui-utils';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { CustomDonut } from '../../../components/charts/CustomDonut';
 import { ActivityHeatmap } from '../../../components/charts/ActivityHeatmap';
+import { Kpi } from '../../../components/ui/Kpi';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
 
@@ -22,7 +23,7 @@ const calculateYAxisMin = (dataMin) => {
   return Math.max(0, Math.floor(dataMin / pow) * pow - (dataMin % pow === 0 ? pow : 0));
 };
 
-export function OverviewTab({ selectedAccount, topFilters, filteredTrend, donut, tagDonut, crossFilterType, setCrossFilterType, pieGroupFilter, setPieGroupFilter, canDrillDown }) {
+export function OverviewTab({ summary, dynamicTypes, dynamicRegions, selectedAccount, topFilters, filteredTrend, donut, tagDonut, crossFilterType, setCrossFilterType, pieGroupFilter, setPieGroupFilter, canDrillDown, onKpiClick }) {
   const enhancedTrend = React.useMemo(() => {
     return filteredTrend.map((item, index) => {
       const prevTotal = index > 0 ? filteredTrend[index - 1].total : item.total;
@@ -32,6 +33,15 @@ export function OverviewTab({ selectedAccount, topFilters, filteredTrend, donut,
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-6 gap-2.5">
+        <Kpi label="Total Active" value={summary?.total || 0} />
+        <Kpi label="Billable" value={summary?.billable || 0} color="text-blue-400" />
+        <Kpi label="Non-Billable" value={summary?.non_billable || 0} color="text-zinc-400" />
+        <Kpi label="New Today" value={summary?.new_today || 0} color="text-green-400" icon={<Plus className="h-3 w-3" />} onClick={() => onKpiClick && onKpiClick('new')} />
+        <Kpi label="Deleted Today" value={summary?.deleted_today || 0} color="text-red-400" icon={<Minus className="h-3 w-3" />} onClick={() => onKpiClick && onKpiClick('deleted')} />
+        <Kpi label="Regions" value={(summary?.region_breakdown || []).length} color="text-cyan-400" icon={<Globe className="h-3 w-3" />} />
+      </div>
+
       <div className="grid grid-cols-4 gap-4">
         <div className="col-span-2 bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-5">
           <div className="flex justify-between items-center mb-3">

@@ -269,8 +269,10 @@ export default function InventoryPage() {
   const dynamicRegions = (serverSummary?.region_breakdown || []);
 
   return (
-    <div className="space-y-6 relative">
-      <div className="flex items-center justify-between">
+    <>
+      <div className="sticky -top-6 h-6 -mx-6 -mt-6 bg-[#0a0a0f]/80 backdrop-blur-md z-30 pointer-events-none" />
+      <div className="space-y-6 relative">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-3">
             Resource Inventory
@@ -298,15 +300,6 @@ export default function InventoryPage() {
         availableTags={filterOptions.availableTags}
       />
 
-      <div className="grid grid-cols-6 gap-2.5">
-        <Kpi label="Total Active" value={serverSummary?.total || 0} />
-        <Kpi label="Billable" value={serverSummary?.billable || 0} color="text-blue-400" />
-        <Kpi label="Non-Billable" value={serverSummary?.non_billable || 0} color="text-zinc-400" />
-        <Kpi label="New Today" value={serverSummary?.new_today || 0} color="text-green-400" icon={<Plus className="h-3 w-3" />} onClick={() => { setTab('resources'); setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' }); }} />
-        <Kpi label="Deleted Today" value={serverSummary?.deleted_today || 0} color="text-red-400" icon={<Minus className="h-3 w-3" />} onClick={() => { setTab('deleted'); setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' }); }} />
-        <Kpi label="Regions" value={(serverSummary?.region_breakdown || []).length} color="text-cyan-400" icon={<Globe className="h-3 w-3" />} />
-      </div>
-
       <div className="border-b border-zinc-800 flex gap-6">
         {['overview', 'changes', 'resources', 'deleted'].map(t => (
           <button
@@ -327,6 +320,17 @@ export default function InventoryPage() {
         <Overview
           summary={serverSummary}
           filteredTrend={filteredTrend}
+          dynamicTypes={dynamicTypes}
+          dynamicRegions={dynamicRegions}
+          onKpiClick={(type) => {
+            if (type === 'new') {
+              setTab('resources');
+              setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+            } else if (type === 'deleted') {
+              setTab('deleted');
+              setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+            }
+          }}
           donut={donut}
           tagDonut={tagDonut}
           pieGroupFilter={pieGroupFilter}
@@ -343,12 +347,13 @@ export default function InventoryPage() {
       {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
       {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
 
-      <ScrollToTopButton />
+      {tab !== 'overview' && <ScrollToTopButton />}
 
       <ResourceDetailModal
         selectedResource={selectedResource}
         setSelectedResource={setSelectedResource}
       />
     </div>
+    </>
   );
 }

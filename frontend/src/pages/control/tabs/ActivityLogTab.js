@@ -1,26 +1,57 @@
-import React, { useState } from 'react';
-import { History, Search, Play, Square, CalendarClock, CheckCircle2, XCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { History, Play, Square, CalendarClock } from 'lucide-react';
 import { FilterBar } from '../../../components/ui/FilterBar';
+import { TableVirtuoso } from 'react-virtuoso';
+import { listAuditLogs } from '../../../api/control';
 
-export function ActivityLogTab({ logs, topFilters }) {
-  const [filter, setFilter] = useState({
-    eventType: 'All'
-  });
+export function ActivityLogTab({ topFilters }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 50;
+
+  const [filter, setFilter] = useState({ eventType: 'All' });
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredLogs = (logs || [])
-    .filter(log => (topFilters.account === 'All Accounts' || log.account_name === topFilters.account))
-    .filter(log => {
-      if (filter.eventType === 'All') return true;
-      if (filter.eventType === 'power') return log.action_type.startsWith('MANUAL_');
-      if (filter.eventType === 'schedule') return log.action_type === 'SCHEDULE_UPDATED';
-      return true;
-    })
-    .filter(log => 
-      log.native_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (log.resource_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.action_type.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const loadLogs = useCallback(async (reset = false) => {
+    if (loading || (!hasMore && !reset)) return;
+    
+    setLoading(true);
+    const currentOffset = reset ? 0 : offset;
+    
+    try {
+      const data = await listAuditLogs({
+        account: topFilters.account,
+        eventType: filter.eventType,
+        search: searchQuery.trim()
+      }, LIMIT, currentOffset);
+      
+      const newLogs = data || [];
+      setLogs(prev => reset ? newLogs : [...prev, ...newLogs]);
+      setOffset(currentOffset + LIMIT);
+      setHasMore(newLogs.length === LIMIT);
+    } catch (e) {
+      console.error("Failed to fetch paginated logs", e);
+      if (reset) setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [topFilters.account, filter.eventType, searchQuery, offset, loading, hasMore]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadLogs(true);
+    }, searchQuery ? 300 : 0);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topFilters.account, filter.eventType, searchQuery]);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      loadLogs(false);
+    }
+  }, [loading, hasMore, loadLogs]);
 
   const eventOptions = [
     { label: 'All Events', value: 'All' },
@@ -48,38 +79,51 @@ export function ActivityLogTab({ logs, topFilters }) {
       <div className="flex items-center justify-between mb-4">
         <FilterBar 
           showLabel={true}
-          className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50"
           filters={[
-            { label: "Event Type:", value: filter.eventType, onChange: v => setFilter({ ...filter, eventType: v }), options: eventOptions, width: "max-w-[180px]" }
+            { 
+              label: "Event Type:", 
+              value: filter.eventType, 
+              onChange: v => setFilter({ ...filter, eventType: v }), 
+              options: eventOptions,
+              width: "max-w-[200px]"
+            }
           ]}
         />
-
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
-          <input 
-            type="text" 
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search resource or action..."
+            className="bg-zinc-800/50 border border-zinc-700/50 rounded-md text-xs px-3 py-1.5 w-[250px] text-zinc-300 focus:outline-none focus:border-zinc-500"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search events..."
-            className="w-full pl-9 pr-3 py-1.5 bg-[#1e1e24] border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
           />
         </div>
       </div>
 
-      <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl overflow-hidden shadow-xl">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-zinc-950/80 text-zinc-400 border-b border-zinc-800 uppercase text-[10px]">
-            <tr>
-              <th className="p-4">Timestamp</th>
-              <th className="p-4">Event Type</th>
-              <th className="p-4">Resource</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Details</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
-            {filteredLogs.map(log => (
-              <tr key={log.id} className="hover:bg-zinc-800/30 transition-colors">
+      <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl shadow-xl">
+        {logs.length > 0 ? (
+          <TableVirtuoso
+            useWindowScroll={!document.getElementById('main-scroll-container')}
+            customScrollParent={document.getElementById('main-scroll-container')}
+            data={logs}
+            endReached={loadMore}
+            components={{
+              Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-950/80 backdrop-blur-md z-20 text-zinc-400 border-b border-zinc-800 uppercase text-[10px]" />),
+              TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
+              TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/60 text-zinc-300" />),
+            }}
+            fixedHeaderContent={() => (
+              <tr>
+                <th className="p-4 w-[20%]">Timestamp</th>
+                <th className="p-4 w-[20%]">Event Type</th>
+                <th className="p-4 w-[25%]">Resource</th>
+                <th className="p-4 w-[15%]">Status</th>
+                <th className="p-4 w-[20%]">Details</th>
+              </tr>
+            )}
+            itemContent={(index, log) => (
+              <>
                 <td className="p-4 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
                   {formatDate(log.timestamp + 'Z')}
                 </td>
@@ -90,39 +134,40 @@ export function ActivityLogTab({ logs, topFilters }) {
                   </div>
                 </td>
                 <td className="p-4">
-                  <div className="font-semibold text-white">{log.resource_name || log.native_id}</div>
+                  <div className="font-semibold text-white truncate">{log.resource_name || log.native_id}</div>
                   <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-500">
-                    <span className="font-mono uppercase">{log.provider}</span> â€¢ <span>{log.account_name}</span>
+                    <span className="font-mono uppercase">{log.provider}</span> • <span>{log.account_name}</span>
                   </div>
                 </td>
                 <td className="p-4">
                   {log.status === 'SUCCESS' ? (
                     <span className="flex items-center gap-1.5 text-green-400 bg-green-500/10 px-2 py-1 rounded-full text-[10px] font-bold w-fit">
-                      <CheckCircle2 className="h-3 w-3" /> SUCCESS
+                      SUCCESS
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-red-400 bg-red-500/10 px-2 py-1 rounded-full text-[10px] font-bold w-fit">
-                      <XCircle className="h-3 w-3" /> FAILED
+                      FAILED
                     </span>
                   )}
                 </td>
-                <td className="p-4 text-zinc-400 text-[11px] max-w-xs truncate" title={log.details}>
+                <td className="p-4 text-[11px] text-zinc-400">
                   {log.details || '-'}
                 </td>
-              </tr>
-            ))}
-            
-            {filteredLogs.length === 0 && (
-              <tr>
-                <td colSpan={5} className="p-12 text-center">
-                  <History className="h-10 w-10 text-zinc-700 mx-auto mb-3" />
-                  <h3 className="text-sm font-semibold text-zinc-400">No Activity Found</h3>
-                  <p className="text-xs text-zinc-600 mt-1">Actions performed on your resources will appear here.</p>
-                </td>
-              </tr>
+              </>
             )}
-          </tbody>
-        </table>
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-24 text-zinc-500">
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <History className="h-10 w-10 mb-3 text-zinc-600" />
+                <p>No activity logs found for the current filters.</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
