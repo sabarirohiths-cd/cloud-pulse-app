@@ -3,8 +3,9 @@ import { Server, Database, Clock, Search } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { toast } from 'sonner';
-import { listResources, togglePower, saveSchedule, getLiveState, logAction } from '../../../api/control';
+import { listResources, togglePower, saveSchedule, getLiveState, logAction, syncResources } from '../../../api/control';
 import ActionModal from '../ActionModal';
+import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 
 export function ResourcesTab({ topFilters, onActionLogged }) {
   const [resources, setResources] = useState([]);
@@ -20,6 +21,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [modalState, setModalState] = useState({ isOpen: false, mode: null, resource: null });
+  const [detailResource, setDetailResource] = useState(null);
 
   const loadResources = async (reset = false) => {
     if (loading || (!hasMore && !reset)) return;
@@ -40,8 +42,11 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
         instance_spec: s.instance_spec || 'unknown',
         tags_json: s.tags_json,
         status: s.status || 'UNKNOWN',
+        parent_resource_id: s.parent_resource_id,
         schedule: {
           is_automation_enabled: s.is_automation_enabled,
+          schedule_pattern: s.schedule_pattern || 'daily',
+          owner_email: s.owner_email || '',
           start_time: s.start_time,
           stop_time: s.stop_time,
           timezone: s.timezone
@@ -123,6 +128,14 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
             setResources(prev => prev.map(res =>
               res.resource_id === r.resource_id ? { ...res, status: newState } : res
             ));
+
+            if (r.service_type === 'ASG' && (newState === 'STOPPED' || newState === 'RUNNING')) {
+              toast.info(`Syncing AWS state for ASG: ${r.name}...`);
+              syncResources(r.account_name).then(() => {
+                loadResources(true);
+                if (onActionLogged) onActionLogged();
+              }).catch(err => console.error("Auto-sync failed", err));
+            }
           }
         } catch (e) {
           console.error(`Failed to poll state for ${r.resource_id}`, e);
@@ -133,7 +146,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
     return () => clearInterval(interval);
   }, [resources]);
 
-  const handleModalConfirm = async ({ mode, resource, automationEnabled, startTime, stopTime, timezone }) => {
+  const handleModalConfirm = async ({ mode, resource, automationEnabled, schedulePattern, ownerEmail, startTime, stopTime, timezone }) => {
     try {
       if (mode === 'schedule') {
         await saveSchedule({
@@ -142,6 +155,8 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
           account_name: resource.account_name,
           region: resource.region,
           is_automation_enabled: automationEnabled,
+          schedule_pattern: schedulePattern,
+          owner_email: ownerEmail,
           start_time: startTime,
           stop_time: stopTime,
           timezone: timezone
@@ -149,13 +164,28 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
 
         setResources(prev => prev.map(r => r.resource_id === resource.resource_id ? {
           ...r,
-          schedule: { is_automation_enabled: automationEnabled, start_time: startTime, stop_time: stopTime, timezone: timezone }
+          schedule: { is_automation_enabled: automationEnabled, schedule_pattern: schedulePattern, owner_email: ownerEmail, start_time: startTime, stop_time: stopTime, timezone: timezone }
         } : r));
 
         toast.success(`Schedule saved for ${resource.resource_id}`);
       } else if (mode === 'start' || mode === 'stop') {
         const optimisticState = mode === 'start' ? 'STARTING' : 'STOPPING';
-        setResources(prev => prev.map(r => r.resource_id === resource.resource_id ? { ...r, status: optimisticState } : r));
+        
+        setResources(prev => prev.map(r => {
+          if (r.resource_id === resource.resource_id) {
+            return { ...r, status: optimisticState };
+          }
+          // Optimistically update child EC2 instances for ASG
+          if (resource.service_type === 'ASG') {
+            try {
+              const tags = typeof r.tags_json === 'string' ? JSON.parse(r.tags_json) : (r.tags_json || {});
+              if (tags['aws:autoscaling:groupName'] === resource.name || tags['aws:autoscaling:groupName'] === resource.resource_id) {
+                return { ...r, status: mode === 'start' ? 'STARTING' : 'TERMINATING' };
+              }
+            } catch (e) {}
+          }
+          return r;
+        }));
 
         await togglePower({
           resource_id: resource.resource_id,
@@ -257,12 +287,12 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
             }}
             fixedHeaderContent={() => (
               <tr>
-                <th className="p-4 w-[35%]">Resource Name</th>
+                <th className="p-4 w-[30%]">Resource Name</th>
                 <th className="p-4 w-[10%]">Service</th>
                 <th className="p-4 w-[15%]">Region</th>
                 <th className="p-4 w-[15%]">Status</th>
                 <th className="p-4 w-[15%]">Automated Schedule</th>
-                <th className="p-4 w-[10%] text-right">Actions</th>
+                <th className="p-4 w-[15%] text-right">Actions</th>
               </tr>
             )}
             itemContent={(index, r) => {
@@ -283,7 +313,12 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
                       {r.service_type?.toLowerCase() === 'ec2' ? <Server className="w-3.5 h-3.5 text-zinc-400" /> : <Database className="w-3.5 h-3.5 text-zinc-400" />}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[13px] font-semibold text-zinc-200 truncate">{r.name}</div>
+                      <div 
+                        className="text-[13px] font-semibold text-zinc-200 truncate cursor-pointer hover:text-blue-400 hover:underline transition-colors"
+                        onClick={() => setDetailResource(r)}
+                      >
+                        {r.name}
+                      </div>
                       {r.resource_id && r.resource_id !== r.name && (
                         <div className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
                           {r.resource_id}
@@ -330,7 +365,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
                         onClick={() => setModalState({ isOpen: true, mode: 'stop', resource: r })}
                         disabled={isAsgManaged}
                         title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors ${
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${
                           isAsgManaged 
                             ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed' 
                             : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
@@ -343,7 +378,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
                         onClick={() => setModalState({ isOpen: true, mode: 'start', resource: r })}
                         disabled={isAsgManaged}
                         title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors ${
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${
                           isAsgManaged 
                             ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed' 
                             : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
@@ -373,6 +408,13 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
         resource={modalState.resource}
         onConfirm={handleModalConfirm}
       />
+      
+      {detailResource && (
+        <ControlResourceDetailModal
+          resource={detailResource}
+          onClose={() => setDetailResource(null)}
+        />
+      )}
     </div>
   );
 }

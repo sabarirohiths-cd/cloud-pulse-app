@@ -11,14 +11,14 @@ import { ResourcesTab } from './tabs/ResourcesTab';
 
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [summary, setSummary] = useState({ running_count: 0, stopped_count: 0, active_schedules_count: 0 });
+  const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, active_schedules_count: 0 });
   const [loading, setLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
 
   // Global filters mimicking the reference UI
   const [topFilters, setTopFilters] = useState({
     provider: 'AWS',
-    account: 'All Accounts',
+    account: '', // Start empty, will be populated on config load
     region: 'All Regions',
     tag: 'All Tags',
     range: 30
@@ -30,7 +30,7 @@ export default function ControlPage() {
   const availableProviders = uniqueProviders.length > 0 ? uniqueProviders : ['AWS', 'AZURE', 'GCP'];
   
   const filteredConfigs = verifiedConfigs.filter(c => (c.provider || '').toUpperCase() === topFilters.provider);
-  const availableAccounts = ['All Accounts', ...filteredConfigs.map(c => c.account_name)];
+  const availableAccounts = filteredConfigs.map(c => c.account_name);
   
   const [availableRegions, setAvailableRegions] = useState(['All Regions']);
   const [availableTags, setAvailableTags] = useState(['All Tags']);
@@ -38,18 +38,15 @@ export default function ControlPage() {
   const handleTopFilterChange = (key, value) => {
     if (key === 'provider') {
       const filtered = verifiedConfigs.filter(c => (c.provider || '').toUpperCase() === value);
-      let newAccount = 'All Accounts';
+      let newAccount = '';
       
-      if (topFilters.account !== 'All Accounts') {
-        const stillValid = filtered.find(c => c.account_name === topFilters.account);
-        if (!stillValid && filtered.length > 0) {
-          newAccount = filtered[0].account_name;
-        } else if (!stillValid) {
-          newAccount = 'All Accounts';
-        } else {
-          newAccount = topFilters.account;
-        }
+      const stillValid = filtered.find(c => c.account_name === topFilters.account);
+      if (!stillValid && filtered.length > 0) {
+        newAccount = filtered[0].account_name;
+      } else if (stillValid) {
+        newAccount = topFilters.account;
       }
+      
       setTopFilters(prev => ({ ...prev, provider: value, account: newAccount }));
     } else {
       setTopFilters(prev => ({ ...prev, [key]: value }));
@@ -94,9 +91,19 @@ export default function ControlPage() {
       
       if (vConfigs.length > 0) {
         const currentProvider = topFilters.provider;
-        const validProvider = vConfigs.find(c => (c.provider || '').toUpperCase() === currentProvider);
-        if (!validProvider) {
-           setTopFilters(prev => ({ ...prev, provider: (vConfigs[0].provider || '').toUpperCase() }));
+        const providerConfigs = vConfigs.filter(c => (c.provider || '').toUpperCase() === currentProvider);
+        
+        if (providerConfigs.length > 0) {
+          const hasCurrentAccount = providerConfigs.find(c => c.account_name === topFilters.account);
+          if (!hasCurrentAccount) {
+            setTopFilters(prev => ({ ...prev, account: providerConfigs[0].account_name }));
+          }
+        } else {
+          setTopFilters(prev => ({ 
+            ...prev, 
+            provider: (vConfigs[0].provider || '').toUpperCase(),
+            account: vConfigs[0].account_name
+          }));
         }
       }
     } catch (err) {
@@ -106,16 +113,16 @@ export default function ControlPage() {
 
   const handleSync = async () => {
     setLoading(true);
-    console.log(`[Sync Process] Starting sync for account: ${topFilters.account}`);
-    try {
-      const response = await syncResources(topFilters.account);
-      console.log(`[Sync Process] Backend response:`, response);
-      if (response && response.synced_count !== undefined) {
-        toast.success(`Synced ${response.synced_count} resources for ${topFilters.account === 'All Accounts' ? 'all accounts' : topFilters.account}`);
-      } else {
-        toast.success(topFilters.account === 'All Accounts' ? "All accounts synced successfully" : `Account ${topFilters.account} synced successfully`);
-      }
-      await loadSummary();
+      console.log(`[Sync Process] Starting sync for account: ${topFilters.account}`);
+      try {
+        const response = await syncResources(topFilters.account);
+        console.log(`[Sync Process] Backend response:`, response);
+        if (response && response.synced_count !== undefined) {
+          toast.success(`Synced ${response.synced_count} resources for ${topFilters.account}`);
+        } else {
+          toast.success(`Account ${topFilters.account} synced successfully`);
+        }
+        await loadSummary();
     } catch (err) {
       console.error("[Sync Process] Error during sync:", err);
       toast.error("Failed to sync resources from AWS. Check browser console for details.");
@@ -191,6 +198,7 @@ export default function ControlPage() {
       <div className="pt-2">
         {activeTab === 'overview' && (
           <OverviewTab
+            totalCount={summary.total_count}
             runningCount={summary.running_count}
             stoppedCount={summary.stopped_count}
             activeSchedulesCount={summary.active_schedules_count}

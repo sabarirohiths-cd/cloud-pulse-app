@@ -1,10 +1,17 @@
 import React from 'react';
-import { Power, Clock } from 'lucide-react';
+import { Power, Clock, Server } from 'lucide-react';
 
-export function OverviewTab({ runningCount, stoppedCount, activeSchedulesCount }) {
+export function OverviewTab({ totalCount, runningCount, stoppedCount, activeSchedulesCount }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
+          <div>
+            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Total Resources</span>
+            <span className="text-2xl font-bold text-zinc-200 mt-1 block">{totalCount}</span>
+          </div>
+          <div className="p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl"><Server className="h-5 w-5 text-zinc-400"/></div>
+        </div>
         <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
           <div>
             <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Running Workloads</span>

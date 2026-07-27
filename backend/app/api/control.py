@@ -10,34 +10,11 @@ from app.core.database import get_db
 from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
+from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
 
 router = APIRouter(prefix="/control", tags=["Resource Control"])
 
-class ScheduleUpdatePayload(BaseModel):
-    resource_id: str
-    service_type: str
-    account_name: str
-    region: str = "us-east-1"
-    is_automation_enabled: bool = True
-    start_time: str = "10:00"
-    stop_time: str = "21:00"
-    timezone: str = "Asia/Kolkata"
 
-class ManualPowerActionPayload(BaseModel):
-    resource_id: str
-    service_type: str
-    account_name: str
-    region: str = "us-east-1"
-    action: str  # 'START' | 'STOP'
-
-class LogActionPayload(BaseModel):
-    resource_id: str
-    service_type: str
-    account_name: str
-    region: str
-    action_type: str
-    status: str
-    details: str
 
 @router.get("/schedules")
 async def list_schedules(db: AsyncSession = Depends(get_db)):
@@ -57,6 +34,7 @@ async def get_summary(
     from sqlalchemy import func, case
     
     stmt = select(
+        func.count(ControlResource.resource_id),
         func.sum(case((ControlResource.status == 'RUNNING', 1), else_=0)),
         func.sum(case((ControlResource.status == 'STOPPED', 1), else_=0)),
         func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
@@ -76,9 +54,10 @@ async def get_summary(
     row = res.first()
     
     return {
-        "running_count": int(row[0] or 0),
-        "stopped_count": int(row[1] or 0),
-        "active_schedules_count": int(row[2] or 0)
+        "total_count": int(row[0] or 0),
+        "running_count": int(row[1] or 0),
+        "stopped_count": int(row[2] or 0),
+        "active_schedules_count": int(row[3] or 0)
     }
 
 @router.get("/resources")
@@ -152,6 +131,8 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
         raise HTTPException(status_code=404, detail="Resource not found")
     else:
         sched.is_automation_enabled = payload.is_automation_enabled
+        sched.schedule_pattern = payload.schedule_pattern
+        sched.owner_email = payload.owner_email
         sched.start_time = payload.start_time
         sched.stop_time = payload.stop_time
         sched.timezone = payload.timezone

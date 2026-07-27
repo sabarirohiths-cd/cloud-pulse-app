@@ -26,3 +26,9 @@ When scaling up to test accounts with 8,000+ active resources, we encountered se
 - **Infinite Scrolling:** Integrated the server-side pagination with the frontend's `TableVirtuoso` `endReached` callback in `ResourcesTab.js`, allowing the frontend to dynamically load 50 records at a time as the user scrolls.
 - **Optimized Polling Engine:** Re-architected the Real-Time Polling engine to only poll the live AWS state for the resources that are actually loaded and visible on the frontend, rather than polling thousands of instances continuously.
 - **Dynamic Filtering:** Fixed a bug in the Control Page where the Account dropdown was not dynamically syncing with the chosen Cloud Provider.
+
+## 6. Advanced Scheduling & Schema Polish (2026-07-27)
+- **Scheduling Capabilities:** Added schedule_pattern (e.g. daily vs mon_fri) and owner_email functionality to support pre-shutdown email notifications.
+- **UX Redesign:** Extracted the massive resource details pane from ActionModal.js into its own standalone ControlResourceDetailModal.js. Streamlined the ActionModal specifically for execution and configuration workflows.
+- **Strict FastAPI Architectures:** Cleaned up technical debt by relocating Pydantic payload models (ScheduleUpdatePayload, ManualPowerActionPayload) directly out of the pi/control.py route file and correctly into the schemas directory.
+- **Safe SQL Injection:** Utilized ALTER TABLE to inject scheduling columns into the local SQLite DB to prevent wiping prior resource synchronization data.

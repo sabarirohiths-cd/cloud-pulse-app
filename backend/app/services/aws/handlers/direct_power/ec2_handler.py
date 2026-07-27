@@ -32,6 +32,11 @@ class EC2Handler(BaseDirectPowerHandler):
                     for inst in reservation.get('Instances', []):
                         instance_id = inst['InstanceId']
                         state_name = inst.get('State', {}).get('Name', '')
+                        
+                        # Ignore completely terminated instances so they are purged from local DB
+                        if state_name.lower() == 'terminated':
+                            continue
+                            
                         instance_type = inst.get('InstanceType', 'unknown')
                         
                         resource_name = instance_id

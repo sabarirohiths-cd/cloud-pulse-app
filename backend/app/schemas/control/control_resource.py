@@ -15,6 +15,14 @@ class ControlResourceBase(BaseModel):
     instance_spec: Optional[str] = None
     saved_config_json: Optional[str] = None
     tags_json: Optional[str] = None
+    parent_resource_id: Optional[str] = None
+    
+    is_automation_enabled: bool = False
+    schedule_pattern: str = "daily"
+    owner_email: Optional[str] = None
+    start_time: str = "10:00"
+    stop_time: str = "21:00"
+    timezone: str = "Asia/Kolkata"
 
 class ControlResourceCreate(ControlResourceBase):
     pass
@@ -24,3 +32,22 @@ class ControlResourceResponse(ControlResourceBase):
     
     class Config:
         from_attributes = True
+
+class ScheduleUpdatePayload(BaseModel):
+    resource_id: str
+    service_type: str
+    account_name: str
+    region: str = "us-east-1"
+    is_automation_enabled: bool = True
+    schedule_pattern: str = "daily"
+    owner_email: Optional[str] = None
+    start_time: str = "10:00"
+    stop_time: str = "21:00"
+    timezone: str = "Asia/Kolkata"
+
+class ManualPowerActionPayload(BaseModel):
+    resource_id: str
+    service_type: str
+    account_name: str
+    region: str = "us-east-1"
+    action: str  # 'START' | 'STOP'

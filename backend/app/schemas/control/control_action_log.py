@@ -20,3 +20,12 @@ class ControlActionLogResponse(ControlActionLogBase):
     
     class Config:
         from_attributes = True
+
+class LogActionPayload(BaseModel):
+    resource_id: str
+    service_type: str
+    account_name: str
+    region: str
+    action_type: str
+    status: str
+    details: str

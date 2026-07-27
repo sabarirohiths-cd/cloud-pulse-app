@@ -7,7 +7,11 @@ Base = declarative_base()
 
 
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL, 
+    echo=False,
+    connect_args={"timeout": 30.0}
+)
 
 @event.listens_for(engine.sync_engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
