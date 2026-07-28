@@ -3,7 +3,7 @@ import { Server, Database, Clock, Search } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { toast } from 'sonner';
-import { listResources, togglePower, saveSchedule, getLiveState, logAction, syncResources } from '../../../api/control';
+import { listResources, togglePower, saveSchedule, getLiveState, syncResources } from '../../../api/control';
 import ActionModal from '../ActionModal';
 import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 
@@ -79,6 +79,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
     if (!loading && hasMore) {
       loadResources(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, hasMore, offset, topFilters]);
 
   // Real-Time Polling Engine
@@ -132,6 +133,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
     }, 10000);
 
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources]);
 
   const handleModalConfirm = async ({ mode, resource, automationEnabled, schedulePattern, ownerEmail, startTime, stopTime, timezone }) => {

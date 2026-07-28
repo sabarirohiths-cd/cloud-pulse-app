@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getControlSummary, getFilterOptions, syncResources, listAuditLogs } from '../../api/control';
+import { getControlSummary, getFilterOptions, syncResources } from '../../api/control';
 import { listConfigs } from '../../api/config';
 import { FilterBar } from '../../components/ui/FilterBar';
 
@@ -13,7 +13,6 @@ export default function ControlPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, active_schedules_count: 0 });
   const [loading, setLoading] = useState(false);
-  const [auditLogs, setAuditLogs] = useState([]);
 
   // Global filters mimicking the reference UI
   const [topFilters, setTopFilters] = useState({
@@ -56,6 +55,7 @@ export default function ControlPage() {
   useEffect(() => {
     loadConfigs();
     loadLogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
