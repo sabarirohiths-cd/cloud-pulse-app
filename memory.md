@@ -30,5 +30,11 @@ When scaling up to test accounts with 8,000+ active resources, we encountered se
 ## 6. Advanced Scheduling & Schema Polish (2026-07-27)
 - **Scheduling Capabilities:** Added schedule_pattern (e.g. daily vs mon_fri) and owner_email functionality to support pre-shutdown email notifications.
 - **UX Redesign:** Extracted the massive resource details pane from ActionModal.js into its own standalone ControlResourceDetailModal.js. Streamlined the ActionModal specifically for execution and configuration workflows.
-- **Strict FastAPI Architectures:** Cleaned up technical debt by relocating Pydantic payload models (ScheduleUpdatePayload, ManualPowerActionPayload) directly out of the pi/control.py route file and correctly into the schemas directory.
+- **Strict FastAPI Architectures:** Cleaned up technical debt by relocating Pydantic payload models (ScheduleUpdatePayload, ManualPowerActionPayload) directly out of the  pi/control.py route file and correctly into the schemas directory.
 - **Safe SQL Injection:** Utilized ALTER TABLE to inject scheduling columns into the local SQLite DB to prevent wiping prior resource synchronization data.
+
+## 7. Amazon ECS Scale-to-Zero Handler (2026-07-28)
+- **ECS Scaling:** Created `ECSScaleToZeroHandler` to safely power down ECS services to exactly 0 tasks.
+- **Dynamic Capacity Discovery:** Engineered dynamic discovery in `ecs_discovery.py` to identify unmanaged Auto Scaling Groups attached to container instances and safely suspend EC2 capacity alongside ECS replica counts.
+- **Defensive Fargate Logic:** Implemented defensive programming checks to verify `launchType` and `capacityProviderStrategy`, bypassing ASG downscaling for Fargate applications.
+- **FastAPI Path Matching:** Refactored `api/control.py` state polling to use `{resource_id:path}` to support ARNs containing slashes.
