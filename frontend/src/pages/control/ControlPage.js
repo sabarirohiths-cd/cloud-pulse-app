@@ -153,7 +153,7 @@ export default function ControlPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-3 text-white tracking-tight">Live Control & Power Automation</h1>
-          <p className="text-sm text-zinc-500">Manage real-time execution & power scheduling for EC2 & RDS clusters</p>
+          <p className="text-sm text-zinc-500">Manage real-time execution & power scheduling for cloud resources</p>
         </div>
         <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}

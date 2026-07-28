@@ -110,12 +110,11 @@ async def get_filter_options(account_name: Optional[str] = None, provider: Optio
 
     # 2. Distinct Tags using SQLite JSON extraction
     tags_stmt = text(f"""
-        SELECT DISTINCT j.key || ':' || j.value 
+        SELECT DISTINCT j.key 
         FROM control_resources r, json_each(r.tags_json) j
-        WHERE {where_clause} 
-        AND json_valid(r.tags_json) = 1
+        WHERE {where_clause} AND r.tags_json IS NOT NULL AND r.tags_json != '{{}}'
     """)
-    tags = [t[0] for t in (await db.execute(tags_stmt, params)).all() if t[0]]
+    tags = [r[0] for r in (await db.execute(tags_stmt, params)).all()]
             
     return {
         "regions": sorted(regions),
@@ -143,7 +142,7 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
     
     # Log schedule update
     log_entry = ControlActionLog(
-        native_id=payload.native_id,
+        native_id=payload.resource_id,
         resource_name=sched.resource_name,
         account_name=payload.account_name,
         provider=sched.cloud_provider,
@@ -189,7 +188,6 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
             
         is_success = res.get("status") == "success"
         
-        # Ensure we only log FAILED actions here. Success actions are logged by the frontend when completely finished.
         if res.get("status") != "success":
             sched_stmt = select(ControlResource).where(ControlResource.resource_id == payload.resource_id)
             sched_res = await db.execute(sched_stmt)
@@ -206,8 +204,7 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
             )
             db.add(log)
             await db.commit()
-        
-        if res.get("status") == "error":
+            
             raise HTTPException(status_code=400, detail=res.get("message"))
             
         # Update database with optimistic transitioning state and saved configs
@@ -218,8 +215,13 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
                 sched = sched_res.scalars().first()
             if sched:
                 sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
+                import json
+                config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
                 if "saved_config_json" in res:
-                    sched.saved_config_json = res["saved_config_json"]
+                    config_data.update(json.loads(res["saved_config_json"]))
+                config_data['last_action'] = f"MANUAL_{payload.action.upper()}"
+                sched.saved_config_json = json.dumps(config_data)
+                
                 await db.commit()
             
         return res
@@ -411,7 +413,43 @@ async def get_live_state(
     sched_res = await db.execute(sched_stmt)
     sched = sched_res.scalars().first()
     if sched and sched.status != state:
-        sched.status = state
-        await db.commit()
+        # Prevent bouncing backwards due to AWS eventual consistency
+        if sched.status == "STOPPING" and state in ["RUNNING", "AVAILABLE"]:
+            pass # Wait for it to actually stop
+        elif sched.status == "STARTING" and state in ["STOPPED", "PAUSED"]:
+            pass # Wait for it to actually start
+        else:
+            old_status = sched.status
+            sched.status = state
+            
+            import json
+            config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
+            
+            if old_status in ["STARTING", "PENDING"] and state in ["RUNNING", "AVAILABLE"]:
+                action_type = config_data.get('last_action', 'POWER_ON')
+                log_entry = ControlActionLog(
+                    native_id=sched.resource_id,
+                    resource_name=sched.resource_name,
+                    account_name=sched.account_name,
+                    provider=sched.cloud_provider,
+                    action_type=action_type,
+                    status="SUCCESS",
+                    details="Resource started successfully."
+                )
+                db.add(log_entry)
+            elif old_status in ["STOPPING", "SHUTTING-DOWN"] and state in ["STOPPED", "PAUSED"]:
+                action_type = config_data.get('last_action', 'POWER_OFF')
+                log_entry = ControlActionLog(
+                    native_id=sched.resource_id,
+                    resource_name=sched.resource_name,
+                    account_name=sched.account_name,
+                    provider=sched.cloud_provider,
+                    action_type=action_type,
+                    status="SUCCESS",
+                    details="Resource stopped successfully."
+                )
+                db.add(log_entry)
+                
+            await db.commit()
         
     return {"resource_id": resource_id, "status": state}

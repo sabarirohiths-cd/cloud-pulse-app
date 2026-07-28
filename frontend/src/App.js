@@ -12,7 +12,7 @@ export default function App() {
       <div className="flex h-screen" onClick={() => toast.dismiss()}>
         {/* Sidebar */}
         <aside className="w-56 bg-[#0f0f1a] border-r border-zinc-800/50 flex flex-col p-4">
-          <h1 className="text-lg font-bold text-white mb-6">☁️ CloudPulse</h1>
+          <h1 className="text-lg font-bold text-white mb-6">CloudPulse</h1>
           <nav className="space-y-1">
             <NavLink to="/control" className={({isActive}) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-blue-500/10 text-blue-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
               <Power className="h-4 w-4" /> Control

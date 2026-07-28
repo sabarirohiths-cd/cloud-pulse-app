@@ -109,20 +109,8 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
 
             if (oldState !== 'RUNNING' && newState === 'RUNNING') {
               toast.success(`Resource ${r.name || r.resource_id} is completely ON!`);
-              logAction({
-                resource_id: r.resource_id, service_type: r.service_type,
-                account_name: r.account_name, region: r.region,
-                action_type: 'MANUAL_START', status: 'SUCCESS', details: `Started successfully.`
-              });
-              if (onActionLogged) onActionLogged();
             } else if (oldState !== 'STOPPED' && newState === 'STOPPED') {
               toast.success(`Resource ${r.name || r.resource_id} is completely OFF!`);
-              logAction({
-                resource_id: r.resource_id, service_type: r.service_type,
-                account_name: r.account_name, region: r.region,
-                action_type: 'MANUAL_STOP', status: 'SUCCESS', details: `Stopped successfully.`
-              });
-              if (onActionLogged) onActionLogged();
             }
 
             setResources(prev => prev.map(res =>

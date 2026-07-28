@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from app.core.database import SessionLocal
-from app.models import ControlResource, ConfigCloudAccount
+from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
 from app.services.notifier import notifier_service
@@ -20,9 +20,9 @@ def is_time_between(start_str: str, stop_str: str, current_time: datetime) -> bo
         current = current_time.time()
 
         if start_time < stop_time:
-            return start_time <= current <= stop_time
+            return start_time <= current < stop_time
         else: # Over midnight
-            return current >= start_time or current <= stop_time
+            return current >= start_time or current < stop_time
     except Exception as e:
         logger.error(f"Error parsing time boundaries: {e}")
         return True # Default to running on error
@@ -45,6 +45,13 @@ async def evaluate_resource(session, sched: ControlResource):
 
         # 2. Target State evaluation
         should_be_running = is_time_between(sched.start_time, sched.stop_time, now)
+        
+        # 2.5 Schedule Pattern evaluation
+        if sched.schedule_pattern == 'mon_fri':
+            # 0=Monday, 6=Sunday
+            if now.weekday() >= 5:
+                should_be_running = False
+                
         target_action = 'START' if should_be_running else 'STOP'
 
         # 3. Pre-warning notification logic (1 hour before shutdown)
@@ -81,19 +88,73 @@ async def evaluate_resource(session, sched: ControlResource):
         
         # 6. Execute action if out of sync
         # Simplification: EC2 uses 'running', 'stopped'
-        is_live_running = live_state in ['running', 'available']
+        live_state_lower = live_state.lower() if live_state else ""
+        is_live_running = live_state_lower in ['running', 'available']
+        is_live_stopped = live_state_lower in ['stopped', 'paused']
         
-        if target_action == 'START' and not is_live_running:
+        if target_action == 'START' and is_live_stopped:
             logger.info(f"[{sched.resource_id}] Target: START, Live: {live_state}. Executing START.")
+            import json
             await control_service.start_resource(config.provider, creds, sched.region, sched.service_type, sched.resource_id)
             sched.last_action_executed = datetime.utcnow()
+            sched.status = 'STARTING'
+            config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
+            config_data['last_action'] = "SCHEDULED_START"
+            sched.saved_config_json = json.dumps(config_data)
             await session.commit()
             
         elif target_action == 'STOP' and is_live_running:
             logger.info(f"[{sched.resource_id}] Target: STOP, Live: {live_state}. Executing STOP.")
+            import json
             await control_service.stop_resource(config.provider, creds, sched.region, sched.service_type, sched.resource_id)
             sched.last_action_executed = datetime.utcnow()
+            sched.status = 'STOPPING'
+            config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
+            config_data['last_action'] = "SCHEDULED_STOP"
+            sched.saved_config_json = json.dumps(config_data)
             await session.commit()
+            
+        # 7. Keep DB status perfectly in sync and detect completions
+        normalized_live = live_state.upper() if live_state else "UNKNOWN"
+        if sched.status != normalized_live:
+            # Prevent bouncing backwards due to AWS eventual consistency
+            if sched.status == "STOPPING" and normalized_live in ["RUNNING", "AVAILABLE"]:
+                pass # Wait for it to actually stop
+            elif sched.status == "STARTING" and normalized_live in ["STOPPED", "PAUSED"]:
+                pass # Wait for it to actually start
+            else:
+                old_status = sched.status
+                sched.status = normalized_live
+                
+                import json
+                config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
+                
+                if old_status in ["STARTING", "PENDING"] and is_live_running:
+                    action_type = config_data.get('last_action', 'POWER_ON')
+                    log_entry = ControlActionLog(
+                        native_id=sched.resource_id,
+                        resource_name=sched.resource_name,
+                        account_name=sched.account_name,
+                        provider=sched.cloud_provider,
+                        action_type=action_type,
+                        status="SUCCESS",
+                        details="Resource started successfully."
+                    )
+                    session.add(log_entry)
+                elif old_status in ["STOPPING", "SHUTTING-DOWN"] and is_live_stopped:
+                    action_type = config_data.get('last_action', 'POWER_OFF')
+                    log_entry = ControlActionLog(
+                        native_id=sched.resource_id,
+                        resource_name=sched.resource_name,
+                        account_name=sched.account_name,
+                        provider=sched.cloud_provider,
+                        action_type=action_type,
+                        status="SUCCESS",
+                        details="Resource stopped successfully."
+                    )
+                    session.add(log_entry)
+                    
+                await session.commit()
 
     except Exception as e:
         logger.error(f"Error evaluating resource {sched.resource_id}: {e}")
@@ -117,10 +178,13 @@ async def run_control_scheduler():
                 for sched in schedules:
                     await evaluate_resource(session, sched)
                     
-            await asyncio.sleep(60)
         except Exception as e:
             logger.error(f"Error in control scheduler loop: {e}")
-            await asyncio.sleep(10)
+            
+        # Sleep until the exact start of the next minute for zero-delay triggering
+        now = datetime.now()
+        sleep_seconds = 60 - now.second - (now.microsecond / 1000000.0)
+        await asyncio.sleep(max(1, sleep_seconds + 0.1))
 
 
 
