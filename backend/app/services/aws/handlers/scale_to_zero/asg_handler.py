@@ -5,7 +5,7 @@ import json
 from botocore.exceptions import ClientError
 from app.services.base_handler import BaseScaleToZeroHandler
 from app.models.control.control_resource import ServiceType, ControlType
-from app.services.aws.handlers.scale_to_zero.asg_discovery import find_parent_instance_from_asg
+from app.services.aws.handlers.scale_to_zero.discovery.asg_discovery import find_parent_instance_from_asg
 
 logger = logging.getLogger(__name__)
 

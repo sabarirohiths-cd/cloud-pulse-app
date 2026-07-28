@@ -215,7 +215,6 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
                 sched = sched_res.scalars().first()
             if sched:
                 sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
-                import json
                 config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
                 if "saved_config_json" in res:
                     config_data.update(json.loads(res["saved_config_json"]))
@@ -383,7 +382,7 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
     await db.commit()
     return {"status": "success", "synced_count": synced_count}
 
-@router.get("/state/{provider}/{region}/{service_type}/{resource_id}")
+@router.get("/state/{provider}/{region}/{service_type}/{resource_id:path}")
 async def get_live_state(
     provider: str,
     region: str,
