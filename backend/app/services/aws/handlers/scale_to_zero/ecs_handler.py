@@ -66,16 +66,22 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                     break
                     
         if not is_fargate:
-            has_managed_cp, asg_names = discover_asg_and_cp_status(session, cluster_name)
+            has_managed_cp, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cluster_name)
+        else:
+            has_managed_cp, managed_asgs, unmanaged_asgs = False, [], []
         
         prev_asg_min = None
         prev_asg_desired = None
+        asg_name = None
         
-        # If there is a managed CP, let the CP handle scaling! Only manually scale Unmanaged ASGs.
-        # We assume for now we scale all unmanaged ASGs attached to the cluster.
-        if asg_names:
-            asg_name = asg_names[0] # Just grab the first one for the config to restore later
-            for a_name in asg_names:
+        # We aggressively force both Managed and Unmanaged ASGs to scale to 0. 
+        # By doing this, we bypass the AWS Capacity Provider's MinSize constraint 
+        # and guarantee 100% cost savings for the user when they click Stop!
+        target_asgs = unmanaged_asgs + managed_asgs
+        
+        if target_asgs:
+            asg_name = target_asgs[0] # Just grab the first one for the config to restore later
+            for a_name in target_asgs:
                 asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[a_name])
                 groups = asg_res.get('AutoScalingGroups', [])
                 if groups:

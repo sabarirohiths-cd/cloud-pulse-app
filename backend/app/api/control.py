@@ -215,8 +215,20 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
             if sched:
                 sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
                 config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
-                if "saved_config_json" in res:
-                    config_data.update(json.loads(res["saved_config_json"]))
+                
+                # If the action returned a new config (e.g. STOP), merge it
+                if res.get("saved_config_json"):
+                    new_config = json.loads(res["saved_config_json"])
+                    config_data.update(new_config)
+                    
+                # Automatically update the associated ASG state in the local DB
+                if config_data.get("asg_name"):
+                    asg_stmt = select(ControlResource).where(ControlResource.resource_id == config_data["asg_name"])
+                    asg_res = await db.execute(asg_stmt)
+                    asg_sched = asg_res.scalars().first()
+                    if asg_sched:
+                        asg_sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
+                            
                 config_data['last_action'] = f"MANUAL_{payload.action.upper()}"
                 sched.saved_config_json = json.dumps(config_data)
                 
