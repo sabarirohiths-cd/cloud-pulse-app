@@ -133,6 +133,13 @@ class ASGHandler(BaseScaleToZeroHandler):
                         
                         parent_id = asg_to_cluster.get(asg_name)
                         if not parent_id:
+                            # 1. Try Deep Inspection of User Data (Highly reliable for 0-capacity ECS unmanaged ASGs)
+                            from .discovery.asg_discovery import async_get_ecs_cluster_from_launch_template
+                            parent_id = await async_get_ecs_cluster_from_launch_template(asg_name, session)
+                            
+                        if not parent_id:
+                            # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
+                            from .discovery.asg_discovery import async_find_parent_instance_from_asg
                             parent_id = await async_find_parent_instance_from_asg(asg_name, session)
 
                         spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"

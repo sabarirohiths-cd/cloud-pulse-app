@@ -154,3 +154,55 @@ async def async_find_parent_instance_from_asg(asg_name: str, session) -> str:
         logger.debug(f"[ASG Discovery] Unexpected error for {asg_name}: {e}")
         
     return None
+
+import base64
+
+async def async_get_ecs_cluster_from_launch_template(asg_name: str, session) -> str:
+    """
+    Deep inspection of ASG's Launch Template UserData to find ECS_CLUSTER name.
+    Useful when the ASG has 0 instances so standard container instance mapping fails.
+    """
+    try:
+        async with session.client('autoscaling') as autoscaling, session.client('ec2') as ec2:
+            asg_res = await autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+            groups = asg_res.get('AutoScalingGroups', [])
+            if not groups:
+                return None
+            
+            asg = groups[0]
+            lt = asg.get('LaunchTemplate')
+            if not lt:
+                mip = asg.get('MixedInstancesPolicy', {})
+                lt = mip.get('LaunchTemplate', {}).get('LaunchTemplateSpecification')
+            
+            if not lt:
+                return None
+                
+            lt_id = lt.get('LaunchTemplateId')
+            lt_version = lt.get('Version', '$Default')
+            
+            if not lt_id:
+                return None
+                
+            lt_res = await ec2.describe_launch_template_versions(
+                LaunchTemplateId=lt_id,
+                Versions=[lt_version]
+            )
+            versions = lt_res.get('LaunchTemplateVersions', [])
+            if not versions:
+                return None
+                
+            user_data_b64 = versions[0].get('LaunchTemplateData', {}).get('UserData')
+            if not user_data_b64:
+                return None
+                
+            user_data = base64.b64decode(user_data_b64).decode('utf-8')
+            
+            # Look for ECS_CLUSTER=my-cluster in the bash script
+            match = re.search(r'ECS_CLUSTER=([^\s"\']+)', user_data)
+            if match:
+                return match.group(1)
+    except Exception as e:
+        logger.debug(f"[ASG Deep Inspection] Failed to inspect UserData for {asg_name}: {e}")
+        
+    return None
