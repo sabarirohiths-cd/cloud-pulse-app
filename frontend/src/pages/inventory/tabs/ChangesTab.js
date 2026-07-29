@@ -4,6 +4,8 @@ import { Virtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier } from '../../../utils/ui-utils';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { CustomSelect } from '../../../components/ui/CustomSelect';
+import { FilterBar } from '../../../components/ui/FilterBar';
+import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { getChanges } from '../../../api/inventory';
 
 export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
@@ -62,46 +64,55 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
   }, [account, topFilters.range, changeFilter, search]);
 
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
-      <div className="sticky top-0 z-20 bg-zinc-900/90 backdrop-blur-md rounded-t-xl px-5 py-3 border-b border-zinc-800/50 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-4">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            Recent Changes
-            <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{totalCount}</span>
-          </h3>
-          <div className="h-4 w-px bg-zinc-800" />
-          <div className="flex gap-2">
-            <CustomSelect
-              value={changeFilter}
-              onChange={setChangeFilter}
-              options={[
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <FilterBar 
+          showLabel={true}
+          filters={[
+            { 
+              label: "Action Type:", 
+              value: changeFilter, 
+              onChange: setChangeFilter, 
+              options: [
                 { value: 'All', label: 'All Changes' },
                 { value: 'created', label: 'Created' },
                 { value: 'updated', label: 'Updated' },
-                { value: 'deleted', label: 'Deleted' },
-              ]}
-              width="w-[140px]"
+                { value: 'deleted', label: 'Deleted' }
+              ],
+              width: "max-w-[200px]"
+            }
+          ]}
+        />
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search resources..."
+              className="bg-zinc-800/50 border border-zinc-700/50 rounded-md text-xs px-3 py-1.5 w-[250px] text-zinc-300 focus:outline-none focus:border-zinc-500"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
             />
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search resources..."
-                className="bg-zinc-800/50 border border-zinc-700/50 rounded-md text-xs px-3 py-1.5 w-[200px] text-zinc-300 focus:outline-none focus:border-zinc-500"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
           </div>
         </div>
-        <span className="text-[10px] font-medium text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">
-          {{ 1: 'Today', 7: 'Last 7 days', 14: 'Last 14 days', 30: 'Last 30 days', 90: 'Last 3 months', 180: 'Last 6 months', 365: 'Last 1 year' }[topFilters.range] || `${topFilters.range} days`}
-        </span>
       </div>
 
-      <div>
-        {loading && changes.length === 0 ? (
-          <div className="py-20 flex items-center justify-center bg-zinc-900/20 z-10">
-            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="bg-[#111114] border border-[#1f1f24] rounded-xl [overflow:clip]">
+        <div className="sticky top-0 z-20 bg-[#0a0a0f]">
+          <div className="bg-[#111114] px-5 py-3 border-b border-[#1f1f24] flex items-center justify-between shrink-0">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-zinc-200">
+              Recent Changes
+              <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{totalCount}</span>
+            </h3>
+            <span className="text-[10px] font-medium text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">
+              {{ 1: 'Today', 7: 'Last 7 days', 14: 'Last 14 days', 30: 'Last 30 days', 90: 'Last 3 months', 180: 'Last 6 months', 365: 'Last 1 year' }[topFilters.range] || `${topFilters.range} days`}
+            </span>
+          </div>
+        </div>
+        
+        <div>
+        {(changes.length === 0 && (loading || (offset === 0 && hasMore))) ? (
+          <div className="h-[600px] w-full">
+            <TableSkeleton />
           </div>
         ) : changes.length > 0 ? (
           <Virtuoso
@@ -214,6 +225,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
           <EmptyState icon={History} message="No changes found." height="h-full" />
         )}
       </div>
+    </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 # CloudPulse Unified Memory Log
-*(Last Updated: 2026-07-24)*
+*(Last Updated: 2026-07-30)*
 
 This document serves as an ongoing memory of the architecture, refactoring, and optimizations performed on the CloudPulse codebase.
 
@@ -44,3 +44,9 @@ When scaling up to test accounts with 8,000+ active resources, we encountered se
 - **Deep Launch Template Inspection for ECS ASGs:** Supplemented standard ECS cluster discovery in sg_discovery.py by adding sync_get_ecs_cluster_from_launch_template to scan Launch Template UserData (Base64 decoded) for the ECS_CLUSTER= tag. This ensures Unmanaged ASGs correctly map their parent ECS services even when their EC2 instances are fully terminated (scale-to-zero).
 - **Aggressive Scale-to-Zero ASG Override:** Updated ecs_handler.py to aggressively bypass AWS Capacity Provider logic. When a user explicitly stops a Managed ECS Service, CloudPulse ignores MinSize=1 constraints and forces the underlying Managed ASG to exactly 0 to guarantee total cost savings, restoring the original MinSize configuration upon restart.
 - **Automatic Synchronous UI Shadowing:** Updated the /toggle-power backend API in control.py. The backend now reads the returned handler payload or saved database config to identify linked secondary resources (like ASGs). It automatically sets these secondary resources to optimistic STARTING/STOPPING states in the local database instantaneously, removing the need for a manual AWS Sync just to update the ASG status UI.
+
+## 9. UI/UX Polishing & Pagination Fixes (2026-07-30 00:42)
+- **Delayed Skeleton Loaders:** Fixed aggressive UI flickering on fast data fetches by wrapping `TableSkeleton` and header spinners in a delayed `fade-in` animation (150ms). This prevents loading indicators from flashing if the backend responds near-instantaneously.
+- **Virtuoso Pagination Bug:** Fixed a critical bug across all Inventory and Control tabs where background pagination (`endReached`) triggered `loading=true`, which aggressively unmounted `TableVirtuoso` and replaced it with a skeleton loader, destroying user scroll position. Skeleton loaders are now strictly limited to initial empty-state loads.
+- **Unified Frameless Filters:** Refactored the `FilterBar` implementation across `ResourcesTab`, `ChangesTab`, `DeletedTab`, and `ActivityLogTab` to use a consistent, frameless inline layout, stripping out redundant background panels and borders.
+- **ChangesTab Restructuring:** Rewrote the `ChangesTab` layout to decouple the filters from the main table container, mirroring the clean separation found in the Control module's `ActivityLogTab`. Moved dynamic date range badges directly into the sticky table headers.

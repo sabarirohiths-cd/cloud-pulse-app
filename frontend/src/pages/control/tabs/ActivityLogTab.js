@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { History, Play, Square, CalendarClock } from 'lucide-react';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { TableVirtuoso } from 'react-virtuoso';
+import { TableSkeleton } from '../../../components/ui/TableSkeleton';
+import { EmptyState } from '../../../components/ui/EmptyState';
 import { listAuditLogs } from '../../../api/control';
 
 export function ActivityLogTab({ topFilters }) {
@@ -100,26 +102,30 @@ export function ActivityLogTab({ topFilters }) {
         </div>
       </div>
 
-      <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl shadow-xl">
-        {logs.length > 0 ? (
+      <div className="bg-[#111114] border border-[#1f1f24] rounded-xl shadow-xl [overflow:clip]">
+        {(logs.length === 0 && (loading || (offset === 0 && hasMore))) ? (
+          <div className="h-[600px] w-full">
+            <TableSkeleton />
+          </div>
+        ) : logs.length > 0 ? (
           <TableVirtuoso
             useWindowScroll={!document.getElementById('main-scroll-container')}
             customScrollParent={document.getElementById('main-scroll-container')}
             data={logs}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-950/80 backdrop-blur-md z-20 text-zinc-400 border-b border-zinc-800 uppercase text-[10px]" />),
+              Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-20 text-zinc-400 uppercase text-[10px]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/60 text-zinc-300" />),
             }}
             fixedHeaderContent={() => (
-              <tr>
-                <th className="p-4 w-[20%]">Timestamp</th>
-                <th className="p-4 w-[20%]">Event Type</th>
-                <th className="p-4 w-[25%]">Resource</th>
-                <th className="p-4 w-[15%]">Status</th>
-                <th className="p-4 w-[20%]">Details</th>
+              <tr className="bg-[#0a0a0f]">
+                <th className="p-4 w-[20%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Timestamp</th>
+                <th className="p-4 w-[20%] bg-[#111114] border-b border-[#1f1f24]">Event Type</th>
+                <th className="p-4 w-[25%] bg-[#111114] border-b border-[#1f1f24]">Resource</th>
+                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
+                <th className="p-4 w-[20%] bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Details</th>
               </tr>
             )}
             itemContent={(index, log) => (
@@ -136,7 +142,7 @@ export function ActivityLogTab({ topFilters }) {
                 <td className="p-4">
                   <div className="font-semibold text-white truncate">{log.resource_name || log.native_id}</div>
                   <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-500">
-                    <span className="font-mono uppercase">{log.provider}</span> • <span>{log.account_name}</span>
+                    <span className="font-mono uppercase">{log.provider}</span> â€¢ <span>{log.account_name}</span>
                   </div>
                 </td>
                 <td className="p-4">
@@ -157,18 +163,10 @@ export function ActivityLogTab({ topFilters }) {
             )}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-zinc-500">
-            {loading ? (
-              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <History className="h-10 w-10 mb-3 text-zinc-600" />
-                <p>No activity logs found for the current filters.</p>
-              </>
-            )}
-          </div>
+          <EmptyState icon={History} message="No activity logs found for the current filters." height="h-full py-24" />
         )}
       </div>
     </div>
   );
 }
+

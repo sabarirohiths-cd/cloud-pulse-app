@@ -195,9 +195,6 @@ export default function InventoryPage() {
 
 
 
-
-  if (loading) return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
-
   let donut = [];
   const strategy = getStrategy(topFilters.provider);
 
@@ -273,18 +270,31 @@ export default function InventoryPage() {
       <div className="sticky -top-6 h-6 -mx-6 -mt-6 bg-[#0a0a0f]/80 backdrop-blur-md z-30 pointer-events-none" />
       <div className="space-y-6 relative">
         <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            Resource Inventory
-          </h1>
-          <p className="text-sm text-zinc-500">Track all cloud resources • Detect daily changes</p>
+        <div className="flex items-center gap-4">
+          {topFilters.provider && (
+            <img src={`/${topFilters.provider.toLowerCase()}-logo.svg`} alt={topFilters.provider} className="h-10 w-10 object-contain" />
+          )}
+          <div>
+            <h1 className="text-xl font-semibold flex items-center gap-3 text-[#e4e4e7] tracking-tight">
+              {topFilters.provider || 'Cloud'} - Inventory Insights ({selectedAccount || 'None'})
+              {loading && accounts.length > 0 && (
+                <>
+                  <span className="opacity-0" style={{ animation: 'fadeIn 0.3s ease-in-out 0.15s forwards' }}>
+                    <RefreshCw className="h-4 w-4 text-zinc-500 animate-spin" />
+                  </span>
+                  <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+                </>
+              )}
+            </h1>
+            <p className="text-[11px] text-[#a1a1aa] mt-1">Track all cloud resources • Detect daily changes</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleWipe} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-red-600/10 text-red-400 rounded-lg hover:bg-red-600/20">
-            <Trash2 className="h-3.5 w-3.5" /> Wipe DB
+          <button onClick={handleWipe} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-red-900/50 text-red-400 rounded-md hover:bg-red-900/20">
+            <Trash2 className="h-3 w-3" /> Wipe DB
           </button>
-          <button onClick={sync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
+          <button onClick={sync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+            <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
           </button>
         </div>
       </div>

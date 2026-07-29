@@ -4,6 +4,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { getResources } from '../../../api/inventory';
 import { getStrategy } from '../../../utils/cloud-strategies';
 
@@ -14,7 +15,7 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
   const [offset, setOffset] = React.useState(0);
   const [localDynamicRegions, setLocalDynamicRegions] = React.useState([]);
   const [localDynamicTypes, setLocalDynamicTypes] = React.useState([]);
-  
+
   const strategy = getStrategy(provider);
   const localDynamicGroups = React.useMemo(() => {
     const groupCounts = {};
@@ -26,9 +27,9 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
       .map(([group, count]) => ({ group, count }))
       .sort((a, b) => b.count - a.count);
   }, [localDynamicTypes, strategy]);
-  
-  
-  
+
+
+
   const LIMIT = 50;
 
   const fetchResources = React.useCallback(async (reset = false) => {
@@ -74,14 +75,14 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
       );
 
       const newResources = res.data.resources;
-      
+
       if (res.data.region_breakdown && filter.region === 'All') {
         setLocalDynamicRegions(res.data.region_breakdown);
       }
       if (res.data.type_breakdown && filter.type === 'All' && filter.group === 'All') {
         setLocalDynamicTypes(res.data.type_breakdown);
       }
-      
+
       setResources(prev => reset ? newResources : [...prev, ...newResources]);
       setOffset(currentOffset + LIMIT);
       setHasMore(newResources.length === LIMIT);
@@ -116,7 +117,7 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
     <div>
       <FilterBar
         showLabel={true}
-        className="flex items-center gap-4 mb-5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50"
+        className="flex flex-wrap items-center gap-4 mb-4"
         filters={[
           { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Services', value: 'All' }, ...localDynamicGroups.map(g => ({ label: `${g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[160px]" },
           { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...(filter.group === 'All' ? [] : localDynamicTypes.filter(t => strategy.getResourceGroup(t.type, '') === filter.group).map(t => ({ label: `${formatType(t.type, provider)} (${t.count})`, value: t.type })))], width: "max-w-[200px]" },
@@ -126,26 +127,30 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
         ]}
       />
 
-      <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
-        {resources.length > 0 ? (
+      <div className="bg-[#111114] border border-[#1f1f24] rounded-xl [overflow:clip]">
+        {(resources.length === 0 && (loading || (offset === 0 && hasMore))) ? (
+          <div className="h-[600px] w-full">
+            <TableSkeleton />
+          </div>
+        ) : resources.length > 0 ? (
           <TableVirtuoso
             useWindowScroll={!document.getElementById('main-scroll-container')}
             customScrollParent={document.getElementById('main-scroll-container')}
             data={resources}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-900/80 backdrop-blur-md z-20 shadow-sm border-b border-zinc-800/50" />),
+              Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-20" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),
             }}
             fixedHeaderContent={() => (
-              <tr>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%]">Identifier</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%]">Type</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%]">Region</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Billable</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Actions</th>
+              <tr className="bg-[#0a0a0f]">
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Identifier</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%] bg-[#111114] border-b border-[#1f1f24]">Type</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Billable</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Actions</th>
               </tr>
             )}
             itemContent={(index, r) => (
@@ -170,7 +175,7 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
             )}
           />
         ) : (
-          <EmptyState icon={Server} message="No resources found." height="h-full" />
+          <EmptyState icon={Server} message="No resources found." height="h-full py-24" />
         )}
       </div>
     </div>

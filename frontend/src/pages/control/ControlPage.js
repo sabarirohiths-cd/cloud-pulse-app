@@ -148,15 +148,20 @@ export default function ControlPage() {
   return (
     <>
       <div className="sticky -top-6 h-6 -mx-6 -mt-6 bg-[#0a0a0f]/80 backdrop-blur-md z-30 pointer-events-none" />
-      <div className="space-y-6 w-full max-w-6xl mx-auto p-0 relative">
+      <div className="space-y-6 relative">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3 text-white tracking-tight">Live Control & Power Automation</h1>
-          <p className="text-sm text-zinc-500">Manage real-time execution & power scheduling for cloud resources</p>
+        <div className="flex items-center gap-4">
+          {topFilters.provider && (
+            <img src={`/${topFilters.provider.toLowerCase()}-logo.svg`} alt={topFilters.provider} className="h-10 w-10 object-contain" />
+          )}
+          <div>
+            <h1 className="text-xl font-semibold flex items-center gap-3 text-[#e4e4e7] tracking-tight">{topFilters.provider || 'Cloud'} - Control Insights ({topFilters.account || 'None'})</h1>
+            <p className="text-[11px] text-[#a1a1aa] mt-1">Manage real-time execution & power scheduling for cloud resources</p>
+          </div>
         </div>
-        <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}
+        <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}
         </button>
       </div>
 

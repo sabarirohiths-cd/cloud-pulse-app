@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
-import { Server, Settings, Power } from 'lucide-react';
+import { Cloud, Zap, Server, Settings } from 'lucide-react';
 import InventoryPage from './pages/inventory/InventoryPage';
 import ConfigPage from './pages/config/ConfigPage';
 import ControlPage from './pages/control/ControlPage';
@@ -11,17 +11,32 @@ export default function App() {
       <Toaster position="top-right" theme="dark" richColors duration={2500} />
       <div className="flex h-screen" onClick={() => toast.dismiss()}>
         {/* Sidebar */}
-        <aside className="w-56 bg-[#0f0f1a] border-r border-zinc-800/50 flex flex-col p-4">
-          <h1 className="text-lg font-bold text-white mb-6">CloudPulse</h1>
+        <aside className="w-56 bg-[#0e1015] border-r border-[#1e232b] flex flex-col p-3">
+          <div className="flex items-center gap-2.5 mb-6 px-3 pt-2">
+            <Cloud className="h-5 w-5 text-white" />
+            <span className="text-white font-semibold text-[14px]">Cloud Pulse Agent</span>
+          </div>
           <nav className="space-y-1">
-            <NavLink to="/control" className={({isActive}) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-blue-500/10 text-blue-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
-              <Power className="h-4 w-4" /> Control
+            <NavLink to="/control" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${isActive ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}>
+              {({isActive}) => (
+                <>
+                  <Zap className={`h-4 w-4 ${isActive ? 'text-[#3b82f6]' : 'text-[#8b949e]'}`} /> Control
+                </>
+              )}
             </NavLink>
-            <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-blue-500/10 text-blue-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
-              <Server className="h-4 w-4" /> Inventory
+            <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${isActive ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}>
+              {({isActive}) => (
+                <>
+                  <Server className={`h-4 w-4 ${isActive ? 'text-[#3b82f6]' : 'text-[#8b949e]'}`} /> Inventory
+                </>
+              )}
             </NavLink>
-            <NavLink to="/config" className={({isActive}) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-blue-500/10 text-blue-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
-              <Settings className="h-4 w-4" /> Cloud Config
+            <NavLink to="/config" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${isActive ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}>
+              {({isActive}) => (
+                <>
+                  <Settings className={`h-4 w-4 ${isActive ? 'text-[#3b82f6]' : 'text-[#8b949e]'}`} /> Configuration
+                </>
+              )}
             </NavLink>
           </nav>
         </aside>

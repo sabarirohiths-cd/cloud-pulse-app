@@ -4,6 +4,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 
 import { getResources } from '../../../api/inventory';
 import { getStrategy } from '../../../utils/cloud-strategies';
@@ -113,7 +114,7 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
     <div>
       <FilterBar
         showLabel={true}
-        className="flex items-center gap-4 mb-5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50"
+        className="flex flex-wrap items-center gap-4 mb-4"
         filters={[
           { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Services', value: 'All' }, ...localDynamicGroups.map(g => ({ label: `${g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[160px]" },
           { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...(filter.group === 'All' ? [] : localDynamicTypes.filter(t => strategy.getResourceGroup(t.type, '') === filter.group).map(t => ({ label: `${formatType(t.type, provider)} (${t.count})`, value: t.type })))], width: "max-w-[200px]" },
@@ -124,7 +125,11 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
       />
 
       <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
-        {resources.length > 0 ? (
+        {(resources.length === 0 && (loading || (offset === 0 && hasMore))) ? (
+          <div className="h-[600px] w-full">
+            <TableSkeleton />
+          </div>
+        ) : resources.length > 0 ? (
           <TableVirtuoso
             useWindowScroll={!document.getElementById('main-scroll-container')}
             customScrollParent={document.getElementById('main-scroll-container')}
@@ -177,7 +182,7 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
             )}
           />
         ) : (
-          <EmptyState icon={Server} message="No resources found." height="h-full" />
+          <EmptyState icon={Server} message="No resources found." height="h-full py-24" />
         )}
       </div>
     </div>
