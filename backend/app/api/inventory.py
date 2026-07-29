@@ -22,6 +22,9 @@ async def trigger_sync(
     if not db_config:
         raise HTTPException(status_code=404, detail="Config not found")
         
+    # Release the database lock before starting the long-running AWS scan!
+    await db.commit()
+        
     from app.core.security import decrypt_credentials
     creds = decrypt_credentials(db_config.encrypted_credentials)
 

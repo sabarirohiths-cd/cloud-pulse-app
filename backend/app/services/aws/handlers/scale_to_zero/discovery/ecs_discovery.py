@@ -62,9 +62,9 @@ def discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[bool, Option
         logger.warning(f"Error discovering ASG for ECS cluster {cluster_name}: {e}")
         
     return has_managed_cp, asg_name
-async def async_discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[bool, Optional[str]]:
+async def async_discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[bool, list]:
     has_managed_cp = False
-    asg_name = None
+    asg_names = []
     
     async with session.client('ecs') as ecs:
         try:
@@ -82,31 +82,34 @@ async def async_discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[
                         asg_arn = asg_config.get('autoScalingGroupArn')
                         if asg_arn:
                             asg_name = asg_arn.split('autoScalingGroupName/')[-1]
-                            break
+                            if asg_name not in asg_names:
+                                asg_names.append(asg_name)
         except Exception as e:
             logger.warning(f"Error checking capacity providers for {cluster_name}: {e}")
 
-        if asg_name:
-            return has_managed_cp, asg_name
-            
+        # Check container instances to find unmanaged ASGs
         try:
-            ci_res = await ecs.list_container_instances(cluster=cluster_name, maxResults=1)
+            ci_res = await ecs.list_container_instances(cluster=cluster_name, maxResults=100)
             ci_arns = ci_res.get('containerInstanceArns', [])
             if ci_arns:
                 desc_ci_res = await ecs.describe_container_instances(cluster=cluster_name, containerInstances=ci_arns)
                 instances = desc_ci_res.get('containerInstances', [])
-                if instances:
-                    ec2_id = instances[0].get('ec2InstanceId')
-                    if ec2_id:
-                        async with session.client('ec2') as ec2:
-                            ec2_res = await ec2.describe_instances(InstanceIds=[ec2_id])
+                ec2_ids = [inst.get('ec2InstanceId') for inst in instances if inst.get('ec2InstanceId')]
+                
+                if ec2_ids:
+                    async with session.client('ec2') as ec2:
+                        for i in range(0, len(ec2_ids), 100):
+                            batch = ec2_ids[i:i+100]
+                            ec2_res = await ec2.describe_instances(InstanceIds=batch)
                             for resrv in ec2_res.get('Reservations', []):
                                 for inst in resrv.get('Instances', []):
                                     for tag in inst.get('Tags', []):
                                         if tag.get('Key') == 'aws:autoscaling:groupName':
                                             asg_name = tag.get('Value')
+                                            if asg_name not in asg_names:
+                                                asg_names.append(asg_name)
                                             break
         except Exception as e:
             logger.warning(f"Error discovering ASG for ECS cluster {cluster_name}: {e}")
             
-    return has_managed_cp, asg_name
+    return has_managed_cp, asg_names

@@ -172,7 +172,8 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
         sched = sched_res.scalars().first()
         
         # Block manual actions on resources managed by a parent (e.g., EC2 managed by ASG, ASG managed by ECS Cluster)
-        if sched and sched.parent_resource_id:
+        # Exception: ECS Services belong to a Cluster (parent), but the Service itself IS the unit of control.
+        if sched and sched.parent_resource_id and sched.service_type != 'ECS':
             raise HTTPException(status_code=400, detail=f"Cannot manually power toggle this resource because it is natively managed by a parent infrastructure layer ({sched.parent_resource_id}). Please control the parent workload instead.")
 
         saved_config = sched.saved_config_json if sched else None
@@ -303,6 +304,9 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
         stmt = stmt.where(ConfigCloudAccount.account_name == account_name)
     res = await db.execute(stmt)
     configs = res.scalars().all()
+    
+    # Release the database lock before starting the long-running AWS scan!
+    await db.commit()
     
     print(f"[Backend Sync] Found {len(configs)} configuration(s) to process.")
     

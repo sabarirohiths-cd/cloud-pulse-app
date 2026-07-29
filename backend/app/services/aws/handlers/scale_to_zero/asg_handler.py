@@ -103,9 +103,9 @@ class ASGHandler(BaseScaleToZeroHandler):
                     for cluster_arn in cluster_page.get('clusterArns', []):
                         cl_name = cluster_arn.split('/')[-1]
                         try:
-                            _, mapped_asg_name = await async_discover_asg_and_cp_status(session, cl_name)
-                            if mapped_asg_name:
-                                asg_to_cluster[mapped_asg_name] = cl_name
+                            _, mapped_asg_names = await async_discover_asg_and_cp_status(session, cl_name)
+                            for asg_name in mapped_asg_names:
+                                asg_to_cluster[asg_name] = cl_name
                         except Exception:
                             pass
                             

@@ -66,24 +66,30 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                     break
                     
         if not is_fargate:
-            has_managed_cp, asg_name = discover_asg_and_cp_status(session, cluster_name)
+            has_managed_cp, asg_names = discover_asg_and_cp_status(session, cluster_name)
         
         prev_asg_min = None
         prev_asg_desired = None
         
-        if asg_name:
-            asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
-            groups = asg_res.get('AutoScalingGroups', [])
-            if groups:
-                prev_asg_min = groups[0].get('MinSize', 0)
-                prev_asg_desired = groups[0].get('DesiredCapacity', 0)
-                
-                # Scale ASG down
-                autoscaling.update_auto_scaling_group(
-                    AutoScalingGroupName=asg_name,
-                    MinSize=0,
-                    DesiredCapacity=0
-                )
+        # If there is a managed CP, let the CP handle scaling! Only manually scale Unmanaged ASGs.
+        # We assume for now we scale all unmanaged ASGs attached to the cluster.
+        if asg_names:
+            asg_name = asg_names[0] # Just grab the first one for the config to restore later
+            for a_name in asg_names:
+                asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[a_name])
+                groups = asg_res.get('AutoScalingGroups', [])
+                if groups:
+                    # Save the state of the first one
+                    if prev_asg_min is None:
+                        prev_asg_min = groups[0].get('MinSize', 0)
+                        prev_asg_desired = groups[0].get('DesiredCapacity', 0)
+                    
+                    # Scale ASG down
+                    autoscaling.update_auto_scaling_group(
+                        AutoScalingGroupName=a_name,
+                        MinSize=0,
+                        DesiredCapacity=0
+                    )
                 
         # 4. Serialize config
         config = {
