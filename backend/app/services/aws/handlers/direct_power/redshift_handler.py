@@ -23,39 +23,6 @@ class RedshiftHandler(BaseDirectPowerHandler):
     Implements Discovery and Direct Power control for Redshift Clusters.
     """
 
-    def scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        session = session_manager.create_session(credentials, region)
-        client = session.client('redshift', region_name=region)
-        resources = []
-
-        try:
-            clusters_res = client.describe_clusters()
-            for cluster in clusters_res.get('Clusters', []):
-                tags_list = cluster.get('Tags', [])
-                tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
-
-                resources.append({
-                    'resource_id': cluster['ClusterIdentifier'],
-                    'resource_name': cluster['ClusterIdentifier'],
-                    'cloud_provider': 'aws',
-                    'region': region,
-                    'service_type': ServiceType.REDSHIFT.value,
-                    'control_type': ControlType.DIRECT_POWER.value,
-                    'status': normalize_redshift_status(cluster.get('ClusterStatus', 'unknown')),
-                    'instance_spec': cluster.get('NodeType', 'unknown'),
-                    'tags': tags_dict,
-                    'last_synced_at': datetime.now(timezone.utc)
-                })
-
-        except ClientError as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("RedshiftHandler", parse_aws_client_error(e))
-        except Exception as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("RedshiftHandler", parse_aws_client_error(e))
-
-        return resources
-
     def _execute_get_state(self, session, native_id: str, **kwargs) -> str:
         client = session.client('redshift')
         res = client.describe_clusters(ClusterIdentifier=native_id)
@@ -71,3 +38,35 @@ class RedshiftHandler(BaseDirectPowerHandler):
     def _execute_stop(self, session, native_id: str, **kwargs):
         client = session.client('redshift')
         client.pause_cluster(ClusterIdentifier=native_id)
+
+    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+        resources = []
+        try:
+            session = session_manager.create_async_session(credentials, region)
+            async with session.client('redshift', region_name=region) as client:
+                clusters_res = await client.describe_clusters()
+                for cluster in clusters_res.get('Clusters', []):
+                    tags_list = cluster.get('Tags', [])
+                    tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
+
+                    resources.append({
+                        'resource_id': cluster['ClusterIdentifier'],
+                        'resource_name': cluster['ClusterIdentifier'],
+                        'cloud_provider': 'aws',
+                        'region': region,
+                        'service_type': ServiceType.REDSHIFT.value,
+                        'control_type': ControlType.DIRECT_POWER.value,
+                        'status': normalize_redshift_status(cluster.get('ClusterStatus', 'unknown')),
+                        'instance_spec': cluster.get('NodeType', 'unknown'),
+                        'tags': tags_dict,
+                        'last_synced_at': datetime.now(timezone.utc)
+                    })
+
+        except ClientError as e:
+            from app.services.base_handler import parse_aws_client_error
+            self.log_once("RedshiftHandler", parse_aws_client_error(e))
+        except Exception as e:
+            from app.services.base_handler import parse_aws_client_error
+            self.log_once("RedshiftHandler", parse_aws_client_error(e))
+
+        return resources

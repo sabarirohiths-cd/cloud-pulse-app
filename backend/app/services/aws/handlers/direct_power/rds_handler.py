@@ -22,57 +22,6 @@ class RDSHandler(BaseDirectPowerHandler):
     Implements Discovery and Direct Power control for Standalone RDS Instances and Aurora Clusters.
     """
 
-    def scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        session = session_manager.create_session(credentials, region)
-        client = session.client('rds', region_name=region)
-        resources = []
-
-        try:
-            # 1. Fetch Standalone RDS Instances
-            instances_res = client.describe_db_instances()
-            for inst in instances_res.get('DBInstances', []):
-                # Skip instances that are part of a cluster (clusters are handled separately)
-                if inst.get('DBClusterIdentifier'):
-                    continue
-                    
-                resources.append({
-                    'resource_id': inst['DBInstanceIdentifier'],
-                    'resource_name': inst['DBInstanceIdentifier'],
-                    'cloud_provider': 'aws',
-                    'region': region,
-                    'service_type': ServiceType.RDS.value,
-                    'control_type': ControlType.DIRECT_POWER.value,
-                    'status': normalize_rds_status(inst.get('DBInstanceStatus', 'unknown')),
-                    'instance_spec': inst.get('DBInstanceClass', 'unknown'),
-                    'tags': {t.get('Key'): t.get('Value') for t in inst.get('TagList', [])},
-                    'last_synced_at': datetime.now(timezone.utc)
-                })
-
-            # 2. Fetch Aurora Clusters
-            clusters_res = client.describe_db_clusters()
-            for cluster in clusters_res.get('DBClusters', []):
-                resources.append({
-                    'resource_id': cluster['DBClusterIdentifier'],
-                    'resource_name': cluster['DBClusterIdentifier'],
-                    'cloud_provider': 'aws',
-                    'region': region,
-                    'service_type': ServiceType.AURORA.value,
-                    'control_type': ControlType.DIRECT_POWER.value,
-                    'status': normalize_rds_status(cluster.get('Status', 'unknown')),
-                    'instance_spec': 'cluster',
-                    'tags': {t.get('Key'): t.get('Value') for t in cluster.get('TagList', [])},
-                    'last_synced_at': datetime.now(timezone.utc)
-                })
-
-        except ClientError as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("RDSHandler", parse_aws_client_error(e))
-        except Exception as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("RDSHandler", parse_aws_client_error(e))
-
-        return resources
-
     def _execute_get_state(self, session, native_id: str, **kwargs) -> str:
         client = session.client('rds')
         is_cluster = kwargs.get('is_cluster', False)
@@ -101,3 +50,50 @@ class RDSHandler(BaseDirectPowerHandler):
             client.stop_db_cluster(DBClusterIdentifier=native_id)
         else:
             client.stop_db_instance(DBInstanceIdentifier=native_id)
+
+    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+        resources = []
+        try:
+            session = session_manager.create_async_session(credentials, region)
+            async with session.client('rds', region_name=region) as client:
+                instances_res = await client.describe_db_instances()
+                for inst in instances_res.get('DBInstances', []):
+                    if inst.get('DBClusterIdentifier'):
+                        continue
+                        
+                    resources.append({
+                        'resource_id': inst['DBInstanceIdentifier'],
+                        'resource_name': inst['DBInstanceIdentifier'],
+                        'cloud_provider': 'aws',
+                        'region': region,
+                        'service_type': ServiceType.RDS.value,
+                        'control_type': ControlType.DIRECT_POWER.value,
+                        'status': normalize_rds_status(inst.get('DBInstanceStatus', 'unknown')),
+                        'instance_spec': inst.get('DBInstanceClass', 'unknown'),
+                        'tags': {t.get('Key'): t.get('Value') for t in inst.get('TagList', [])},
+                        'last_synced_at': datetime.now(timezone.utc)
+                    })
+
+                clusters_res = await client.describe_db_clusters()
+                for cluster in clusters_res.get('DBClusters', []):
+                    resources.append({
+                        'resource_id': cluster['DBClusterIdentifier'],
+                        'resource_name': cluster['DBClusterIdentifier'],
+                        'cloud_provider': 'aws',
+                        'region': region,
+                        'service_type': ServiceType.AURORA.value,
+                        'control_type': ControlType.DIRECT_POWER.value,
+                        'status': normalize_rds_status(cluster.get('Status', 'unknown')),
+                        'instance_spec': 'cluster',
+                        'tags': {t.get('Key'): t.get('Value') for t in cluster.get('TagList', [])},
+                        'last_synced_at': datetime.now(timezone.utc)
+                    })
+
+        except ClientError as e:
+            from app.services.base_handler import parse_aws_client_error
+            self.log_once("RDSHandler", parse_aws_client_error(e))
+        except Exception as e:
+            from app.services.base_handler import parse_aws_client_error
+            self.log_once("RDSHandler", parse_aws_client_error(e))
+
+        return resources

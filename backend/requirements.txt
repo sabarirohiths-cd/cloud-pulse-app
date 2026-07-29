@@ -12,3 +12,4 @@ azure-identity
 azure-mgmt-resourcegraph
 google-auth
 google-cloud-asset
+aiobotocore>=2.12.3

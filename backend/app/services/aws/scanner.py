@@ -37,7 +37,8 @@ class AWSParallelScanner:
         tasks = []
         for region in active_regions:
             for handler in self.handlers:
-                tasks.append(asyncio.to_thread(handler.scan_region, self.session_manager, credentials, region))
+                tasks.append(handler.async_scan_region(self.session_manager, credentials, region))
+                
                 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         

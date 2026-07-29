@@ -1,10 +1,38 @@
 import asyncio
 import os
 import boto3
+import aioboto3
 import botocore.session
 from botocore.exceptions import BotoCoreError, ClientError
 
 class AWSSessionManager:
+    def create_async_session(self, credentials: dict, region: str = None):
+        """Returns an aioboto3 Session that can yield async clients."""
+        if credentials.get('assume_role_arn'):
+            # For async assume role, we don't assume the role here. 
+            # We just create a base session, and the caller handles async assume_role if needed, 
+            # OR aioboto3 handles it via botocore credentials configuration.
+            # aioboto3 handles assume role natively if credentials are provided properly
+            params = {
+                'region_name': region
+            }
+            if credentials.get('aws_access_key_id'):
+                params['aws_access_key_id'] = credentials['aws_access_key_id']
+                params['aws_secret_access_key'] = credentials['aws_secret_access_key']
+            if credentials.get('aws_session_token'):
+                params['aws_session_token'] = credentials['aws_session_token'].strip()
+                
+            return aioboto3.Session(**params)
+        else:
+            params = {
+                'aws_access_key_id': credentials.get('aws_access_key_id', '').strip() if credentials.get('aws_access_key_id') else None,
+                'aws_secret_access_key': credentials.get('aws_secret_access_key', '').strip() if credentials.get('aws_secret_access_key') else None,
+                'region_name': region
+            }
+            if credentials.get('aws_session_token'):
+                params['aws_session_token'] = credentials.get('aws_session_token', '').strip()
+            return aioboto3.Session(**params)
+
     def create_session(self, credentials: dict, region: str = None):
         bc_session = botocore.session.get_session()
         if credentials.get('aws_access_key_id') or credentials.get('assume_role_arn'):

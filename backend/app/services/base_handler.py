@@ -35,7 +35,7 @@ class ControlResourceHandler(ABC):
             logging.warning(f"[{service_name}] {error_message}")
             
     @abstractmethod
-    def scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
         """Discover resources of this type in a given region."""
         pass
 
