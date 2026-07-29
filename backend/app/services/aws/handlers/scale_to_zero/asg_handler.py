@@ -18,7 +18,36 @@ class ASGHandler(BaseScaleToZeroHandler):
     def scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
         session = session_manager.create_session(credentials, region)
         client = session.client('autoscaling', region_name=region)
+        ecs_client = session.client('ecs', region_name=region)
         resources = []
+        
+        # Discover all ECS Capacity Providers to map ASGs
+        cp_asgs = {}
+        asg_to_cluster = {}
+        try:
+            from app.services.aws.handlers.scale_to_zero.discovery.ecs_discovery import discover_asg_and_cp_status
+            
+            # 1. Map ALL ASGs to Clusters (Both Managed and Unmanaged)
+            cluster_paginator = ecs_client.get_paginator('list_clusters')
+            for cluster_page in cluster_paginator.paginate():
+                for cluster_arn in cluster_page.get('clusterArns', []):
+                    cl_name = cluster_arn.split('/')[-1]
+                    try:
+                        _, mapped_asg_name = discover_asg_and_cp_status(session, cl_name)
+                        if mapped_asg_name:
+                            asg_to_cluster[mapped_asg_name] = cl_name
+                    except Exception:
+                        pass
+            # 2. Get CP details for UI Status display
+            cp_res = ecs_client.describe_capacity_providers()
+            for cp in cp_res.get('capacityProviders', []):
+                asg_arn = cp.get('autoScalingGroupProvider', {}).get('autoScalingGroupArn')
+                status = cp.get('autoScalingGroupProvider', {}).get('managedScaling', {}).get('status', 'DISABLED')
+                if asg_arn:
+                    asg_name_cp = asg_arn.split('autoScalingGroupName/')[-1]
+                    cp_asgs[asg_name_cp] = status
+        except Exception as e:
+            logger.warning(f"Error mapping capacity providers: {e}")
 
         try:
             paginator = client.get_paginator('describe_auto_scaling_groups')
@@ -33,9 +62,21 @@ class ASGHandler(BaseScaleToZeroHandler):
                     desired = asg.get('DesiredCapacity', 0)
                     status = 'RUNNING' if desired > 0 else 'STOPPED'
                     
-                    # Auto-discover parent EC2 instance
-                    parent_id = find_parent_instance_from_asg(asg_name, session)
-                    
+                    # Determine Parent Master Instance
+                    parent_id = asg_to_cluster.get(asg_name)
+                    if not parent_id:
+                        parent_id = find_parent_instance_from_asg(asg_name, session)
+
+                    # Determine ECS Mapping
+                    spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
+                    if asg_name in cp_asgs:
+                        cp_status = cp_asgs[asg_name]
+                        spec = f"ECS CP ({cp_status}) | {spec}"
+                    elif parent_id and asg_name in asg_to_cluster:
+                        spec = f"ECS (Unmanaged) | {spec}"
+                    elif any('ecs' in t.get('Key').lower() or 'ecs' in t.get('Value', '').lower() for t in tags_list):
+                        spec = f"ECS (Unmanaged) | {spec}"
+                        
                     resources.append({
                         'resource_id': asg_name,
                         'resource_name': asg_name,
@@ -44,7 +85,7 @@ class ASGHandler(BaseScaleToZeroHandler):
                         'service_type': ServiceType.ASG.value,
                         'control_type': ControlType.SCALE_TO_ZERO.value,
                         'status': status,
-                        'instance_spec': f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}",
+                        'instance_spec': spec,
                         'tags': tags_dict,
                         'parent_resource_id': parent_id,
                         'last_synced_at': datetime.now(timezone.utc)

@@ -17,7 +17,7 @@ def discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[bool, Option
     
     # 1. Check Capacity Providers
     try:
-        cluster_res = ecs.describe_clusters(clusters=[cluster_name], include=['CAPACITY_PROVIDERS'])
+        cluster_res = ecs.describe_clusters(clusters=[cluster_name])
         clusters = cluster_res.get('clusters', [])
         if clusters:
             cp_names = clusters[0].get('capacityProviders', [])
@@ -27,12 +27,19 @@ def discover_asg_and_cp_status(session, cluster_name: str) -> Tuple[bool, Option
                     asg_config = cp.get('autoScalingGroupProvider', {})
                     if asg_config.get('managedScaling', {}).get('status') == 'ENABLED':
                         has_managed_cp = True
+                    
+                    asg_arn = asg_config.get('autoScalingGroupArn')
+                    if asg_arn:
+                        # Extract name from ARN: arn:aws:autoscaling:region:account:autoScalingGroup:uuid:autoScalingGroupName/my-asg
+                        asg_name = asg_arn.split('autoScalingGroupName/')[-1]
                         break
     except Exception as e:
         logger.warning(f"Error checking capacity providers for {cluster_name}: {e}")
         
-    if has_managed_cp:
-        return True, None
+
+    if asg_name:
+        # Return the ASG name if found via CP, regardless of whether scaling is ENABLED or DISABLED
+        return has_managed_cp, asg_name
         
     # 2. If no Managed CP, inspect container instances to find ASG
     try:

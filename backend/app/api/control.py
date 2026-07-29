@@ -171,11 +171,9 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
         sched_res = await db.execute(sched_stmt)
         sched = sched_res.scalars().first()
         
-        # Block manual actions on ASG-managed EC2 instances
-        if sched and sched.tags_json:
-            tags = json.loads(sched.tags_json)
-            if 'aws:autoscaling:groupName' in tags:
-                raise HTTPException(status_code=400, detail="Cannot manually power toggle an EC2 instance managed by an Auto Scaling Group. Please control the parent ASG instead.")
+        # Block manual actions on resources managed by a parent (e.g., EC2 managed by ASG, ASG managed by ECS Cluster)
+        if sched and sched.parent_resource_id:
+            raise HTTPException(status_code=400, detail=f"Cannot manually power toggle this resource because it is natively managed by a parent infrastructure layer ({sched.parent_resource_id}). Please control the parent workload instead.")
 
         saved_config = sched.saved_config_json if sched else None
 

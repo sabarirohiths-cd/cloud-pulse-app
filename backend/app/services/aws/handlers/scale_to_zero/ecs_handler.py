@@ -20,11 +20,21 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         session = session_manager.create_session(credentials, region)
         ecs = session.client('ecs', region_name=region)
         resources = []
+        cluster_asg_cache = {}
 
         try:
             cluster_paginator = ecs.get_paginator('list_clusters')
             for cluster_page in cluster_paginator.paginate():
                 for cluster_arn in cluster_page.get('clusterArns', []):
+                    cluster_name = cluster_arn.split('/')[-1]
+                    
+                    if cluster_name not in cluster_asg_cache:
+                        try:
+                            _, asg_name = discover_asg_and_cp_status(session, cluster_name)
+                            cluster_asg_cache[cluster_name] = asg_name
+                        except Exception:
+                            cluster_asg_cache[cluster_name] = None
+                            
                     service_paginator = ecs.get_paginator('list_services')
                     for service_page in service_paginator.paginate(cluster=cluster_arn):
                         service_arns = service_page.get('serviceArns', [])
@@ -35,7 +45,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                         # Describe services in batches of 10 (AWS API Limit)
                         for i in range(0, len(service_arns), 10):
                             batch = service_arns[i:i+10]
-                            res = ecs.describe_services(cluster=cluster_arn, services=batch)
+                            res = ecs.describe_services(cluster=cluster_arn, services=batch, include=['TAGS'])
                             for svc in res.get('services', []):
                                 # Skip DAEMON services as they cannot be scaled
                                 if svc.get('schedulingStrategy') == 'DAEMON':
@@ -45,6 +55,23 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                                 svc_name = svc.get('serviceName')
                                 desired = svc.get('desiredCount', 0)
                                 status = 'RUNNING' if desired > 0 else 'STOPPED'
+                                
+                                is_fargate = False
+                                if svc.get('launchType') == 'FARGATE':
+                                    is_fargate = True
+                                else:
+                                    for cp in svc.get('capacityProviderStrategy', []):
+                                        if cp.get('capacityProvider', '').startswith('FARGATE'):
+                                            is_fargate = True
+                                            break
+                                            
+                                asg_name = cluster_asg_cache.get(cluster_name)
+                                if is_fargate:
+                                    spec_type = "FARGATE"
+                                elif asg_name:
+                                    spec_type = f"ASG: {asg_name}"
+                                else:
+                                    spec_type = "EC2"
                                 
                                 # Extract tags if present
                                 tags_list = svc.get('tags', [])
@@ -58,9 +85,9 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                                     'service_type': ServiceType.ECS.value,
                                     'control_type': ControlType.SCALE_TO_ZERO.value,
                                     'status': status,
-                                    'instance_spec': f"Desired Tasks: {desired}",
+                                    'instance_spec': f"{spec_type} | Tasks: {desired}",
                                     'tags': tags_dict,
-                                    'parent_resource_id': cluster_arn.split('/')[-1],
+                                    'parent_resource_id': cluster_name,
                                     'last_synced_at': datetime.now(timezone.utc)
                                 })
         except ClientError as e:
@@ -129,7 +156,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         prev_asg_min = None
         prev_asg_desired = None
         
-        if not has_managed_cp and asg_name:
+        if asg_name:
             asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
             groups = asg_res.get('AutoScalingGroups', [])
             if groups:
@@ -184,7 +211,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         prev_ecs_desired = config.get('prev_ecs_desired', 1)
         
         # 1. Restore ASG first (if applicable)
-        if not config.get('has_managed_cp') and config.get('asg_name'):
+        if config.get('asg_name'):
             asg_name = config.get('asg_name')
             prev_asg_min = config.get('prev_asg_min')
             prev_asg_desired = config.get('prev_asg_desired')

@@ -41,10 +41,13 @@ class EC2Handler(BaseDirectPowerHandler):
                         
                         resource_name = instance_id
                         tags_dict = {}
+                        parent_asg = None
                         for tag in inst.get('Tags', []):
                             tags_dict[tag.get('Key')] = tag.get('Value')
                             if tag.get('Key') == 'Name' and tag.get('Value'):
                                 resource_name = tag['Value']
+                            if tag.get('Key') == 'aws:autoscaling:groupName' and tag.get('Value'):
+                                parent_asg = tag['Value']
                                 
                         resources.append({
                             'resource_id': instance_id,
@@ -56,6 +59,7 @@ class EC2Handler(BaseDirectPowerHandler):
                             'status': normalize_ec2_status(state_name),
                             'instance_spec': instance_type,
                             'tags': tags_dict,
+                            'parent_resource_id': parent_asg,
                             'last_synced_at': datetime.now(timezone.utc)
                         })
         except ClientError as e:
