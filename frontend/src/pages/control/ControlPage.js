@@ -12,16 +12,22 @@ import { ResourcesTab } from './tabs/ResourcesTab';
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, active_schedules_count: 0 });
+  const [syncRefreshTrigger, setSyncRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(false);
 
   // Global filters mimicking the reference UI
   const [topFilters, setTopFilters] = useState({
-    provider: 'AWS',
-    account: '', // Start empty, will be populated on config load
+    provider: localStorage.getItem('pulse_control_provider') || 'AWS',
+    account: localStorage.getItem('pulse_control_account') || '', // Start empty or from storage
     region: 'All Regions',
     tag: 'All Tags',
     range: 30
   });
+
+  useEffect(() => {
+    if (topFilters.provider) localStorage.setItem('pulse_control_provider', topFilters.provider);
+    if (topFilters.account) localStorage.setItem('pulse_control_account', topFilters.account);
+  }, [topFilters.provider, topFilters.account]);
 
   const [verifiedConfigs, setVerifiedConfigs] = useState([]);
   
@@ -90,11 +96,23 @@ export default function ControlPage() {
       setVerifiedConfigs(vConfigs);
       
       if (vConfigs.length > 0) {
-        const currentProvider = topFilters.provider;
+        // First try to restore the account saved in localStorage if it's verified
+        const savedAccount = localStorage.getItem('pulse_control_account');
+        const savedMatch = vConfigs.find(c => c.account_name === savedAccount);
+        
+        let currentProvider = topFilters.provider;
+        let currentAccount = topFilters.account;
+
+        if (savedMatch) {
+          currentProvider = savedMatch.provider ? savedMatch.provider.toUpperCase() : 'AWS';
+          currentAccount = savedMatch.account_name;
+          setTopFilters(prev => ({ ...prev, provider: currentProvider, account: currentAccount }));
+        }
+
         const providerConfigs = vConfigs.filter(c => (c.provider || '').toUpperCase() === currentProvider);
         
         if (providerConfigs.length > 0) {
-          const hasCurrentAccount = providerConfigs.find(c => c.account_name === topFilters.account);
+          const hasCurrentAccount = providerConfigs.find(c => c.account_name === currentAccount);
           if (!hasCurrentAccount) {
             setTopFilters(prev => ({ ...prev, account: providerConfigs[0].account_name }));
           }
@@ -123,6 +141,7 @@ export default function ControlPage() {
           toast.success(`Account ${topFilters.account} synced successfully`);
         }
         await loadSummary();
+        setSyncRefreshTrigger(prev => prev + 1);
     } catch (err) {
       console.error("[Sync Process] Error during sync:", err);
       toast.error("Failed to sync resources from AWS. Check browser console for details.");
@@ -214,6 +233,7 @@ export default function ControlPage() {
           <ResourcesTab
             topFilters={topFilters}
             onActionLogged={loadLogs}
+            syncRefreshTrigger={syncRefreshTrigger}
           />
         )}
       </div>

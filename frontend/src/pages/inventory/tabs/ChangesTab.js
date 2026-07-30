@@ -3,7 +3,7 @@ import { History } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier } from '../../../utils/ui-utils';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { CustomSelect } from '../../../components/ui/CustomSelect';
+
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { getChanges } from '../../../api/inventory';

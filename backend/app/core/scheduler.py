@@ -99,7 +99,7 @@ async def evaluate_resource(session, sched: ControlResource):
             sched.last_action_executed = datetime.utcnow()
             sched.status = 'STARTING'
             config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
-            config_data['last_action'] = "SCHEDULED_START"
+            config_data['last_action'] = "SCHEDULE START"
             sched.saved_config_json = json.dumps(config_data)
             await session.commit()
             
@@ -110,7 +110,7 @@ async def evaluate_resource(session, sched: ControlResource):
             sched.last_action_executed = datetime.utcnow()
             sched.status = 'STOPPING'
             config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
-            config_data['last_action'] = "SCHEDULED_STOP"
+            config_data['last_action'] = "SCHEDULE STOP"
             sched.saved_config_json = json.dumps(config_data)
             await session.commit()
             
@@ -130,7 +130,7 @@ async def evaluate_resource(session, sched: ControlResource):
                 config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
                 
                 if old_status in ["STARTING", "PENDING"] and is_live_running:
-                    action_type = config_data.get('last_action', 'POWER_ON')
+                    action_type = config_data.get('last_action', 'SCHEDULE START')
                     log_entry = ControlActionLog(
                         native_id=sched.resource_id,
                         resource_name=sched.resource_name,
@@ -142,7 +142,7 @@ async def evaluate_resource(session, sched: ControlResource):
                     )
                     session.add(log_entry)
                 elif old_status in ["STOPPING", "SHUTTING-DOWN"] and is_live_stopped:
-                    action_type = config_data.get('last_action', 'POWER_OFF')
+                    action_type = config_data.get('last_action', 'SCHEDULE STOP')
                     log_entry = ControlActionLog(
                         native_id=sched.resource_id,
                         resource_name=sched.resource_name,
@@ -186,131 +186,4 @@ async def run_control_scheduler():
         sleep_seconds = 60 - now.second - (now.microsecond / 1000000.0)
         await asyncio.sleep(max(1, sleep_seconds + 0.1))
 
-
-
-import asyncio
-import logging
-from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
-
-from sqlalchemy.future import select
-from sqlalchemy import update
-from app.core.database import SessionLocal
-from app.models import ConfigCloudAccount
-from app.core.security import decrypt_credentials
-from app.services.aws.service import AWSService
-from app.services.azure.service import AzureService
-from app.services.gcp.service import GCPService
-from app.services.inventory_service import sync_inventory
-active_syncs = set()
-
-async def run_sync_task(c_id: int):
-    try:
-        # We create a new DB session for the background task to avoid sharing sessions
-        async with SessionLocal() as db:
-            c = await db.get(ConfigCloudAccount, c_id)
-            if not c:
-                return
-                
-            print(f">>> Auto-sync initiated for account '{c.account_name}' (Provider: {c.provider}).")
-            logger.info(f"Auto-sync initiated for account '{c.account_name}' (Provider: {c.provider}).")
-            
-            try:
-                creds = decrypt_credentials(c.encrypted_credentials)
-                
-                if c.provider == "aws":
-                    aws_service = AWSService()
-                    fetched_resources = await aws_service.fetch_all_resources(creds, c.default_region)
-                    await sync_inventory(db, c.provider, c.account_name, fetched_resources)
-                    
-                elif c.provider == "azure":
-                    azure_service = AzureService()
-                    sub_id = creds.get('subscription_id')
-                    fetched_resources = await azure_service.fetch_all_resources(creds, sub_id)
-                    await sync_inventory(db, c.provider, c.account_name, fetched_resources)
-                    
-                elif c.provider == "gcp":
-                    gcp_service = GCPService()
-                    fetched_resources = await gcp_service.fetch_all_resources(creds)
-                    await sync_inventory(db, c.provider, c.account_name, fetched_resources)
-                    
-                else:
-                    logger.warning(f"Auto-sync not yet supported for provider: {c.provider}")
-                    return
-                
-                # Update last sync date on SUCCESS ONLY
-                now_tz = datetime.now(ZoneInfo(c.auto_sync_timezone or "Asia/Kolkata"))
-                current_date_str = now_tz.strftime("%Y-%m-%d")
-                await db.execute(update(ConfigCloudAccount).where(ConfigCloudAccount.id == c_id).values(last_sync_date=current_date_str))
-                await db.commit()
-                
-                print(f">>> Auto-sync completed successfully for account '{c.account_name}'.")
-                logger.info(f"Auto-sync completed successfully for account '{c.account_name}'.")
-            except Exception as e:
-                print(f">>> ERROR: Auto-sync failed for account '{c.account_name}'. Error: {e}")
-                logger.error(f"Auto-sync failed for account '{c.account_name}'. Error: {e}")
-                print(f">>> Will retry auto-sync for '{c.account_name}' in 5 minutes...")
-                # Sleep 5 minutes before releasing the lock to enforce the retry interval
-                await asyncio.sleep(300)
-    finally:
-        if c_id in active_syncs:
-            active_syncs.remove(c_id)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Suppress verbose HTTP logging from the Azure SDK
-logging.getLogger("azure").setLevel(logging.WARNING)
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
-
-async def run_auto_sync():
-    """
-    Background loop that wakes up every minute exactly on the 0th second.
-    It checks for configurations with auto_sync_enabled=True.
-    If the current time in the configured timezone is >= auto_sync_time,
-    and it hasn't successfully synced today (in that timezone), it attempts to sync.
-    If it fails, it will lock the task for 5 minutes before retrying.
-    """
-    print(">>> Background auto-sync scheduler started (Waiting for enabled accounts...)")
-    logger.info("Background auto-sync scheduler started (Waiting for enabled accounts...)")
-    
-    while True:
-        try:
-            async with SessionLocal() as db:
-                stmt = select(ConfigCloudAccount).where(ConfigCloudAccount.auto_sync_enabled == True, ConfigCloudAccount.verified == True)
-                result = await db.execute(stmt)
-                configs = result.scalars().all()
-                
-                for c in configs:
-                    try:
-                        # Calculate current time in target timezone
-                        tz = ZoneInfo(c.auto_sync_timezone or "Asia/Kolkata")
-                        now_tz = datetime.now(tz)
-                        current_time_str = now_tz.strftime("%H:%M")
-                        current_date_str = now_tz.strftime("%Y-%m-%d")
-                        
-                        target_time = c.auto_sync_time or "10:00"
-                        
-                        # Check if time has passed and we haven't synced today
-                        if current_time_str >= target_time and c.last_sync_date != current_date_str:
-                            if c.id not in active_syncs:
-                                active_syncs.add(c.id)
-                                # Fire and forget the heavy sync task in the background
-                                asyncio.create_task(run_sync_task(c.id))
-                            
-                    except Exception as e:
-                        print(f">>> ERROR: Failed to schedule sync for account '{c.account_name}'. Error: {e}")
-                        logger.error(f"Failed to schedule sync for account '{c.account_name}'. Error: {e}")
-        except Exception as e:
-            print(f">>> CRITICAL ERROR in auto-sync scheduler loop: {e}")
-            logger.error(f"Error in auto-sync scheduler loop: {e}")
-            
-        # Sleep until the exact start of the next minute for zero-delay triggering
-        now = datetime.now()
-        sleep_seconds = 60 - now.second - (now.microsecond / 1000000.0)
-        # Add a tiny buffer to ensure we cross into the next minute
-        await asyncio.sleep(sleep_seconds + 0.05)
 

@@ -67,10 +67,7 @@ export const listAuditLogs = async (filters = {}, limit = 50, offset = 0) => {
   return response.data;
 };
 
-export const getLiveState = async ({ provider, region, serviceType, resourceId, accountName }) => {
-  const response = await apiClient.get(`/control/state/${provider}/${region}/${serviceType}/${resourceId}`, {
-    params: { account_name: accountName }
-  });
+export const getDbState = async (resourceId) => {
+  const response = await apiClient.get('/control/db-state/' + encodeURIComponent(resourceId));
   return response.data;
 };
-

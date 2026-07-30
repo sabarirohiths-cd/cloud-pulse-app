@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Server, Database, X, Globe, Tag as TagIcon, LayoutTemplate } from 'lucide-react';
-import { formatType, formatIdentifier, formatName } from '../../utils/ui-utils';
+import { formatIdentifier, formatName } from '../../utils/ui-utils';
 
 export function ControlResourceDetailModal({ resource, onClose }) {
   if (!resource) return null;

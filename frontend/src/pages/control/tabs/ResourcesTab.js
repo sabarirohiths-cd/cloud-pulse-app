@@ -5,11 +5,11 @@ import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { toast } from 'sonner';
-import { listResources, togglePower, saveSchedule, getLiveState, syncResources } from '../../../api/control';
+import { listResources, togglePower, saveSchedule, getDbState } from '../../../api/control';
 import ActionModal from '../ActionModal';
 import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 
-export function ResourcesTab({ topFilters, onActionLogged }) {
+export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger }) {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -75,7 +75,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
     setOffset(0);
     loadResources(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topFilters.account, topFilters.provider, topFilters.region, topFilters.tag]);
+  }, [topFilters.account, topFilters.provider, topFilters.region, topFilters.tag, syncRefreshTrigger]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
@@ -95,13 +95,7 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
     const interval = setInterval(() => {
       transitioningResources.forEach(async (r) => {
         try {
-          const liveData = await getLiveState({
-            provider: r.cloud_provider,
-            region: r.region,
-            serviceType: r.service_type,
-            resourceId: r.resource_id,
-            accountName: r.account_name
-          });
+          const liveData = await getDbState(r.resource_id);
 
           if (liveData.status && liveData.status.toUpperCase() !== r.status.toUpperCase()) {
             const newState = liveData.status.toUpperCase();
@@ -119,14 +113,6 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
             setResources(prev => prev.map(res =>
               res.resource_id === r.resource_id ? { ...res, status: newState } : res
             ));
-
-            if (r.service_type === 'ASG' && (newState === 'STOPPED' || newState === 'RUNNING')) {
-              toast.info(`Syncing AWS state for ASG: ${r.name}...`);
-              syncResources(r.account_name).then(() => {
-                loadResources(true);
-                if (onActionLogged) onActionLogged();
-              }).catch(err => console.error("Auto-sync failed", err));
-            }
           }
         } catch (e) {
           console.error(`Failed to poll state for ${r.resource_id}`, e);
@@ -179,13 +165,34 @@ export function ResourcesTab({ topFilters, onActionLogged }) {
           return r;
         }));
 
-        await togglePower({
+        const toggleRes = await togglePower({
           resource_id: resource.resource_id,
           service_type: resource.service_type,
           account_name: resource.account_name,
           region: resource.region,
           action: mode.toUpperCase()
         });
+        
+        if (toggleRes && toggleRes.saved_config_json) {
+          try {
+            const configData = JSON.parse(toggleRes.saved_config_json);
+            if (configData.asg_name) {
+              const asgName = configData.asg_name;
+              setResources(prev => prev.map(r => {
+                if (r.resource_id === asgName) {
+                  return { ...r, status: optimisticState };
+                }
+                if (r.service_type === 'EC2') {
+                  const tags = typeof r.tags_json === 'string' ? JSON.parse(r.tags_json) : (r.tags_json || {});
+                  if (tags['aws:autoscaling:groupName'] === asgName) {
+                    return { ...r, status: mode === 'start' ? 'STARTING' : 'TERMINATING' };
+                  }
+                }
+                return r;
+              }));
+            }
+          } catch(e) {}
+        }
 
         toast.success(`Resource is now ${optimisticState.toLowerCase()}`);
       }

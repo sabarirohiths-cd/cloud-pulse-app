@@ -7,9 +7,9 @@ import logging
 
 from app.core.config import settings
 from app.core.database import init_db
+from app.monitoring.state_monitor import recover_orphaned_transitions
 from app.core.scheduler import run_control_scheduler
 from app.api import cloud_config, control, actions, inventory
-from app.core.scheduler import run_control_scheduler, run_auto_sync
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Initializing database and background scheduler...")
     await init_db()
+    await recover_orphaned_transitions()
     asyncio.create_task(run_control_scheduler())
-    asyncio.create_task(run_auto_sync())
     yield
 
 app = FastAPI(

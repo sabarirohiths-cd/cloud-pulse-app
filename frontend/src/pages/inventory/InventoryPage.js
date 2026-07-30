@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, Plus, Minus, Globe, Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAdvancedSummary, getChanges, getTrend, triggerSync, wipeDatabase, getFilterOptions } from '../../api/inventory';
+import { getAdvancedSummary, getTrend, triggerSync, wipeDatabase, getFilterOptions } from '../../api/inventory';
 import { apiClient } from '../../api/api';
 import { OverviewTab as Overview } from './tabs/OverviewTab';
 import { ChangesTab as Changes } from './tabs/ChangesTab';
@@ -10,7 +10,6 @@ import { DeletedTab as Deleted } from './tabs/DeletedTab';
 import { ResourceDetailModal } from './ResourceDetailModal';
 import TopFilters from './TopFilters';
 import { getStrategy } from '../../utils/cloud-strategies';
-import { Kpi } from '../../components/ui/Kpi';
 
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 

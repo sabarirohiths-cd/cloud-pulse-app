@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,6 +11,7 @@ from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
 from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
+from app.monitoring.state_monitor import monitor_resource_transition
 
 router = APIRouter(prefix="/control", tags=["Resource Control"])
 
@@ -156,7 +157,7 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
     return {"status": "success", "message": "Schedule updated successfully"}
 
 @router.post("/toggle-power")
-async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Depends(get_db)):
+async def toggle_power(payload: ManualPowerActionPayload, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     stmt = select(ConfigCloudAccount).where(ConfigCloudAccount.account_name == payload.account_name)
     res = await db.execute(stmt)
     config = res.scalars().first()
@@ -197,7 +198,7 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
                 resource_name=sched.resource_name if sched else payload.resource_id,
                 account_name=payload.account_name,
                 provider=config.provider,
-                action_type=f"MANUAL_{payload.action.upper()}",
+                action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
                 status="FAILED",
                 details=str(res.get("details", res.get("message", "")))
             )
@@ -229,10 +230,32 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
                     if asg_sched:
                         asg_sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
                             
-                config_data['last_action'] = f"MANUAL_{payload.action.upper()}"
+                config_data['last_action'] = "MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP"
                 sched.saved_config_json = json.dumps(config_data)
                 
                 await db.commit()
+                
+                # Spawn background monitoring task for the main resource
+                target_state = "RUNNING" if payload.action.upper() == "START" else "STOPPED"
+                background_tasks.add_task(
+                    monitor_resource_transition,
+                    account_name=payload.account_name,
+                    region=payload.region,
+                    service_type=payload.service_type,
+                    resource_id=payload.resource_id,
+                    target_state=target_state
+                )
+                
+                # If an ASG is involved, spawn a monitor for the ASG as well
+                if config_data.get("asg_name"):
+                    background_tasks.add_task(
+                        monitor_resource_transition,
+                        account_name=payload.account_name,
+                        region=payload.region,
+                        service_type="ASG",
+                        resource_id=config_data["asg_name"],
+                        target_state=target_state
+                    )
             
         return res
     except Exception as e:
@@ -241,7 +264,7 @@ async def toggle_power(payload: ManualPowerActionPayload, db: AsyncSession = Dep
             resource_name=payload.resource_id,
             account_name=payload.account_name,
             provider=config.provider,
-            action_type=f"MANUAL_{payload.action.upper()}",
+            action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
             status="FAILED",
             details=str(e)
         )
@@ -265,7 +288,7 @@ async def list_audit_logs(
         
     if event_type and event_type != 'All':
         if event_type == 'power':
-            stmt = stmt.where(ControlActionLog.action_type.like('MANUAL_%'))
+            stmt = stmt.where(ControlActionLog.action_type.in_(['MANUAL START', 'MANUAL STOP', 'SCHEDULE START', 'SCHEDULE STOP', 'SCHEDULED_START', 'SCHEDULED_STOP']))
         elif event_type == 'schedule':
             stmt = stmt.where(ControlActionLog.action_type == 'SCHEDULE_UPDATED')
             
@@ -464,5 +487,13 @@ async def get_live_state(
                 db.add(log_entry)
                 
             await db.commit()
-        
     return {"resource_id": resource_id, "status": state}
+
+@router.get("/db-state/{resource_id:path}")
+async def get_db_state(resource_id: str, db: AsyncSession = Depends(get_db)):
+    stmt = select(ControlResource).where(ControlResource.resource_id == resource_id)
+    res = await db.execute(stmt)
+    sched = res.scalars().first()
+    if not sched:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return {"status": sched.status}

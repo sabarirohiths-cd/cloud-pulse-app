@@ -66,7 +66,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                     break
                     
         if not is_fargate:
-            has_managed_cp, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cluster_name)
+            has_managed_cp, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cluster_name, service_name)
         else:
             has_managed_cp, managed_asgs, unmanaged_asgs = False, [], []
         
@@ -74,12 +74,48 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         prev_asg_desired = None
         asg_name = None
         
-        # We aggressively force both Managed and Unmanaged ASGs to scale to 0. 
-        # By doing this, we bypass the AWS Capacity Provider's MinSize constraint 
-        # and guarantee 100% cost savings for the user when they click Stop!
         target_asgs = unmanaged_asgs + managed_asgs
         
+        peer_demand = 0
         if target_asgs:
+            try:
+                service = services[0]
+                service_cps = [cp.get('capacityProvider') for cp in service.get('capacityProviderStrategy', []) if cp.get('capacityProvider')]
+                
+                paginator = ecs.get_paginator('list_services')
+                for page in paginator.paginate(cluster=cluster_name):
+                    service_arns = page.get('serviceArns', [])
+                    if not service_arns:
+                        continue
+                    
+                    peer_arns = [arn for arn in service_arns if arn.split('/')[-1] != service_name]
+                    if not peer_arns:
+                        continue
+                        
+                    for i in range(0, len(peer_arns), 10):
+                        batch = peer_arns[i:i+10]
+                        desc_res = ecs.describe_services(cluster=cluster_name, services=batch)
+                        for peer_svc in desc_res.get('services', []):
+                            is_daemon = peer_svc.get('schedulingStrategy') == 'DAEMON'
+                            if is_daemon or peer_svc.get('desiredCount', 0) == 0:
+                                continue
+                            
+                            peer_uses_same_compute = False
+                            if service_cps:
+                                peer_cps = [cp.get('capacityProvider') for cp in peer_svc.get('capacityProviderStrategy', []) if cp.get('capacityProvider')]
+                                if set(service_cps).intersection(set(peer_cps)):
+                                    peer_uses_same_compute = True
+                            else:
+                                peer_cps = [cp.get('capacityProvider') for cp in peer_svc.get('capacityProviderStrategy', []) if cp.get('capacityProvider')]
+                                if not peer_cps:
+                                    peer_uses_same_compute = True
+                                    
+                            if peer_uses_same_compute:
+                                peer_demand += peer_svc.get('desiredCount', 0)
+            except Exception as e:
+                logger.warning(f"Error evaluating peer demand for cluster {cluster_name}: {e}")
+        
+        if target_asgs and peer_demand == 0:
             asg_name = target_asgs[0] # Just grab the first one for the config to restore later
             for a_name in target_asgs:
                 asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[a_name])
@@ -170,13 +206,6 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                 async for cluster_page in cluster_paginator.paginate():
                     for cluster_arn in cluster_page.get('clusterArns', []):
                         cluster_name = cluster_arn.split('/')[-1]
-                        
-                        if cluster_name not in cluster_asg_cache:
-                            try:
-                                _, asg_name = await async_discover_asg_and_cp_status(session, cluster_name)
-                                cluster_asg_cache[cluster_name] = asg_name
-                            except Exception:
-                                cluster_asg_cache[cluster_name] = None
                                 
                         service_paginator = ecs.get_paginator('list_services')
                         async for service_page in service_paginator.paginate(cluster=cluster_arn):
@@ -206,7 +235,16 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                                                 is_fargate = True
                                                 break
                                                 
-                                    asg_name = cluster_asg_cache.get(cluster_name)
+                                    asg_name = None
+                                    if not is_fargate:
+                                        try:
+                                            has_cp, managed, unmanaged = await async_discover_asg_and_cp_status(session, cluster_name, svc_name)
+                                            all_asgs = managed + unmanaged
+                                            if all_asgs:
+                                                asg_name = all_asgs[0]
+                                        except Exception as e:
+                                            logger.warning(f"Failed to discover ASG for {svc_name}: {e}")
+
                                     if is_fargate:
                                         spec_type = "FARGATE"
                                     elif asg_name:
