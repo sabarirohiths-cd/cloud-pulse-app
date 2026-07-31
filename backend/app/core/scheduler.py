@@ -182,11 +182,30 @@ async def run_control_scheduler():
     1. Pre-warning check (1h before shutdown): Triggers notification email
     2. Shutdown check: Stops resources if no active override
     3. Startup check: Powers up scheduled resources
+    4. TTL Cleanup: Deletes old system notifications
     """
     logger.info("Control Module Automation Scheduler started...")
+    from app.models.system.system_notification import SystemNotification
+    from sqlalchemy import delete
+    from datetime import timedelta
+    
+    last_cleanup_hour = -1
+
     while True:
         try:
+            now = datetime.now()
+            
             async with SessionLocal() as session:
+                # 1. TTL Cleanup (Run once per hour)
+                if now.hour != last_cleanup_hour:
+                    cutoff = datetime.utcnow() - timedelta(days=2)
+                    await session.execute(
+                        delete(SystemNotification).where(SystemNotification.created_at < cutoff)
+                    )
+                    await session.commit()
+                    last_cleanup_hour = now.hour
+
+                # 2. Automation scheduling
                 stmt = select(ControlResource).where(ControlResource.is_automation_enabled == True)
                 res = await session.execute(stmt)
                 schedules = res.scalars().all()

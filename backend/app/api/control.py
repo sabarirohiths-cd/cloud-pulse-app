@@ -454,8 +454,26 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
             import traceback
             traceback.print_exc()
             print(f"[Backend Sync] Failed to sync account {config.account_name}: {e}")
+            from app.models.system.system_notification import SystemNotification
+            notification = SystemNotification(
+                title="Control Sync Failed",
+                message=f"Failed to sync {config.account_name}: {str(e)}",
+                type="ERROR",
+                module="CONTROL"
+            )
+            db.add(notification)
             pass # Skip failed providers or log them
             
+    if synced_count > 0:
+        from app.models.system.system_notification import SystemNotification
+        notification = SystemNotification(
+            title="Control Sync Completed",
+            message=f"Successfully synced {synced_count} resources.",
+            type="SUCCESS",
+            module="CONTROL"
+        )
+        db.add(notification)
+        
     await db.commit()
     return {"status": "success", "synced_count": synced_count}
 

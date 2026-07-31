@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { Server, Database, X, Globe, Tag as TagIcon, LayoutTemplate } from 'lucide-react';
 import { formatIdentifier, formatName } from '../../utils/ui-utils';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 export function ControlResourceDetailModal({ resource, onClose }) {
   if (!resource) return null;
@@ -89,7 +90,7 @@ export function ControlResourceDetailModal({ resource, onClose }) {
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-zinc-500 italic p-3 rounded-xl border border-dashed border-[#30363d] text-center bg-[#161b22]">No tags found</div>
+                <EmptyState icon={TagIcon} message="No tags found" height="h-[80px]" />
               )}
             </div>
           </div>

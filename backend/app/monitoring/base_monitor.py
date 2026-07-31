@@ -6,6 +6,7 @@ from app.core.database import SessionLocal
 from app.models.config.config_cloud_account import ConfigCloudAccount
 from app.models.control.control_resource import ControlResource
 from app.models.control.control_action_log import ControlActionLog
+from app.models.system.system_notification import SystemNotification
 from app.services.control_service import control_service
 from app.core.security import decrypt_credentials
 
@@ -71,6 +72,14 @@ async def monitor_resource_transition(
                             details=f"Resource successfully transitioned to {sched.status}."
                         )
                         db.add(log_entry)
+                        
+                        notification = SystemNotification(
+                            title="Resource State Changed",
+                            message=f"{sched.resource_name} ({sched.resource_id}) has successfully transitioned to {sched.status}.",
+                            type="SUCCESS",
+                            module="CONTROL"
+                        )
+                        db.add(notification)
                         
                         await db.commit()
                         logger.info(f"[State Monitor] Successfully updated DB state for {resource_id} to {sched.status}")

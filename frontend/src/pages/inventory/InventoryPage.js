@@ -10,7 +10,7 @@ import { DeletedTab as Deleted } from './tabs/DeletedTab';
 import { ResourceDetailModal } from './ResourceDetailModal';
 import TopFilters from './TopFilters';
 import { getStrategy } from '../../utils/cloud-strategies';
-
+import { NotificationBell } from '../../components/ui/NotificationBell';
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 
 export default function InventoryPage() {
@@ -287,16 +287,19 @@ export default function InventoryPage() {
             </h1>
             <p className="text-[11px] text-[#a1a1aa] mt-1">Track all cloud resources • Detect daily changes</p>
           </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <div className="flex items-center gap-3">
+              <button onClick={handleWipe} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-red-900/50 text-red-400 rounded-md hover:bg-red-900/20">
+                <Trash2 className="h-3 w-3" /> Wipe DB
+              </button>
+              <button onClick={sync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+                <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={handleWipe} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-red-900/50 text-red-400 rounded-md hover:bg-red-900/20">
-            <Trash2 className="h-3 w-3" /> Wipe DB
-          </button>
-          <button onClick={sync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-            <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
-          </button>
-        </div>
-      </div>
 
       <TopFilters
         topFilters={topFilters}

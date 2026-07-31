@@ -8,6 +8,7 @@ import { OverviewTab } from './tabs/OverviewTab';
 import { ActivityLogTab } from './tabs/ActivityLogTab';
 import { ResourcesTab } from './tabs/ResourcesTab';
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
+import { NotificationBell } from '../../components/ui/NotificationBell';
 
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -179,9 +180,12 @@ export default function ControlPage() {
             <p className="text-[11px] text-[#a1a1aa] mt-1">Manage real-time execution & power scheduling for cloud resources</p>
           </div>
         </div>
-        <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}
-        </button>
+        <div className="flex items-center gap-4">
+          <NotificationBell />
+          <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}
+          </button>
+        </div>
       </div>
 
       <FilterBar
