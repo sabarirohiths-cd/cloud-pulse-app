@@ -41,10 +41,10 @@ export const ScrollToTopButton = () => {
         const virtuosoScrollers = document.querySelectorAll('[data-virtuoso-scroller]');
         virtuosoScrollers.forEach(t => t.scrollTo({ top: 0, behavior: 'auto' }));
       }}
-      className="fixed bottom-8 right-8 p-3 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all z-50 flex items-center justify-center"
+      className="fixed bottom-6 right-4 p-2 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all z-50 flex items-center justify-center opacity-80 hover:opacity-100"
       title="Scroll to Top"
     >
-      <ArrowUp className="h-5 w-5" />
+      <ArrowUp className="h-4 w-4" />
     </button>
   );
 };

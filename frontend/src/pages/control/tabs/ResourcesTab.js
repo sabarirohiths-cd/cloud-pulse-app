@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Server, Database, Clock, Search } from 'lucide-react';
+import { Server, Database, Clock, Search, ListTree, ChevronRight, ChevronDown } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { listResources, togglePower, saveSchedule, getDbState } from '../../../api/control';
 import ActionModal from '../ActionModal';
 import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
+import { buildResourceTree } from '../../../utils/resource-tree';
 
 export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger }) {
   const [resources, setResources] = useState([]);
@@ -24,6 +25,17 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   const [searchQuery, setSearchQuery] = useState('');
   const [modalState, setModalState] = useState({ isOpen: false, mode: null, resource: null });
   const [detailResource, setDetailResource] = useState(null);
+  const [isGroupView, setIsGroupView] = useState(false);
+  const [expandedRowIds, setExpandedRowIds] = useState(new Set());
+
+  const toggleRow = (id) => {
+    setExpandedRowIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
+  };
 
   const loadResources = async (reset = false) => {
     if (loading || (!hasMore && !reset)) return;
@@ -248,6 +260,8 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
       r.account_name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+  const treeData = React.useMemo(() => buildResourceTree(filteredResources, isGroupView, expandedRowIds), [filteredResources, isGroupView, expandedRowIds]);
+
   const groupOptions = [
     { label: 'All Groups', value: 'All' },
     ...uniqueGroups.map(g => ({ label: g.toUpperCase(), value: g }))
@@ -282,29 +296,40 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           ]}
         />
 
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search loaded resources..."
-            className="w-full pl-9 pr-3 py-1.5 bg-[#1e1e24] border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
-          />
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsGroupView(!isGroupView)}
+            title={isGroupView ? "Switch to Flat View" : "Switch to Group View"}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${isGroupView ? 'bg-blue-600/10 text-blue-400 border-blue-600/20' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
+          >
+            <ListTree className="w-3.5 h-3.5" />
+            {isGroupView ? 'Grouped' : 'Flat'}
+          </button>
+
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search loaded resources..."
+              className="w-full pl-9 pr-3 py-1.5 bg-[#1e1e24] border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
         </div>
       </div>
 
       {/* Table */}
       <div className="bg-[#111114] border border-[#1f1f24] rounded-xl shadow-xl [overflow:clip]">
-        {(filteredResources.length === 0 && (loading || (offset === 0 && hasMore))) ? (
+        {(treeData.length === 0 && (loading || (offset === 0 && hasMore))) ? (
           <div className="h-[600px] w-full">
             <TableSkeleton />
           </div>
-        ) : filteredResources.length > 0 ? (
+        ) : treeData.length > 0 ? (
           <TableVirtuoso
             useWindowScroll={!document.getElementById('main-scroll-container')}
             customScrollParent={document.getElementById('main-scroll-container')}
-            data={filteredResources}
+            data={treeData}
             endReached={loadMore}
             components={{
               Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
@@ -316,9 +341,9 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
               <tr className="bg-[#0a0a0f]">
                 <th className="p-4 w-[30%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Resource Name</th>
                 <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Service</th>
-                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
+                <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
                 <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
-                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Automated Schedule</th>
+                <th className="p-4 w-[20%] bg-[#111114] border-b border-[#1f1f24] whitespace-nowrap">Automated Schedule</th>
                 <th className="p-4 w-[15%] text-right bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Actions</th>
               </tr>
             )}
@@ -334,8 +359,15 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
               return (
                 <>
-                  <td className="p-4 truncate">
+                  <td className="p-4 truncate" style={{ paddingLeft: r._level ? `${r._level * 24 + 16}px` : '16px' }}>
                     <div className="flex items-center gap-3">
+                      {isGroupView && r._isExpandable ? (
+                        <button onClick={(e) => { e.stopPropagation(); toggleRow(r.resource_id); }} className="p-0.5 hover:bg-zinc-800 rounded text-zinc-400">
+                          {r._isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </button>
+                      ) : (
+                        isGroupView && <div className="w-5" />
+                      )}
                       <div className="p-1.5 rounded bg-zinc-800/50 shrink-0">
                         {r.service_type?.toLowerCase() === 'ec2' ? <Server className="w-3.5 h-3.5 text-zinc-400" /> : <Database className="w-3.5 h-3.5 text-zinc-400" />}
                       </div>

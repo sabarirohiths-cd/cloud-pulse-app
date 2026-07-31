@@ -32,6 +32,7 @@ class ControlResource(Base):
     resource_name = Column(String, nullable=True)
     cloud_provider = Column(String, default="aws", index=True)
     account_name = Column(String, nullable=False, default="default", index=True)
+    linked_account = Column(String, nullable=True, index=True)
     region = Column(String, nullable=False, index=True)
     
     service_type = Column(Enum(ServiceType), nullable=False)

@@ -4,10 +4,10 @@ import { toast } from 'sonner';
 import { getControlSummary, getFilterOptions, syncResources } from '../../api/control';
 import { listConfigs } from '../../api/config';
 import { FilterBar } from '../../components/ui/FilterBar';
-
 import { OverviewTab } from './tabs/OverviewTab';
 import { ActivityLogTab } from './tabs/ActivityLogTab';
 import { ResourcesTab } from './tabs/ResourcesTab';
+import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -237,6 +237,8 @@ export default function ControlPage() {
           />
         )}
       </div>
+
+      {activeTab !== 'overview' && <ScrollToTopButton />}
     </div>
     </>
   );

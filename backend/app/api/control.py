@@ -351,6 +351,38 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
             )
             print(f"[Backend Sync] Fetched {len(resources)} resources from {config.provider}.")
             
+            # Pre-Sync Data Migration: Auto-Merge Orphaned Data
+            if resources:
+                from sqlalchemy import update
+                active_linked = resources[0].get("linked_account")
+                if active_linked:
+                    # Find old accounts to migrate
+                    old_accounts_stmt = select(ControlResource.account_name).where(
+                        ControlResource.cloud_provider == config.provider,
+                        ControlResource.linked_account == active_linked,
+                        ControlResource.account_name != config.account_name
+                    ).distinct()
+                    old_accounts = (await db.execute(old_accounts_stmt)).scalars().all()
+                    
+                    if old_accounts:
+                        # Migrate ControlResource
+                        await db.execute(
+                            update(ControlResource)
+                            .where(
+                                ControlResource.cloud_provider == config.provider,
+                                ControlResource.linked_account == active_linked,
+                                ControlResource.account_name != config.account_name
+                            )
+                            .values(account_name=config.account_name)
+                        )
+                        # Migrate ControlActionLog
+                        await db.execute(
+                            update(ControlActionLog)
+                            .where(ControlActionLog.account_name.in_(old_accounts))
+                            .values(account_name=config.account_name)
+                        )
+                        await db.commit()
+            
             # Fetch existing PARENT resources from DB to track stale ones
             # We ignore child resources here because the global scanner does not fetch them
             stmt = select(ControlResource).where(
@@ -376,6 +408,7 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
                         instance_spec=r.get('instance_spec', 'unknown'),
                         cloud_provider=config.provider,
                         account_name=config.account_name,
+                        linked_account=r.get('linked_account'),
                         region=r.get('region', config.default_region),
                         tags_json=json.dumps(r.get('tags', {})),
                         parent_resource_id=r.get('parent_resource_id'),
@@ -390,6 +423,7 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
                     sched.instance_spec = r.get('instance_spec', 'unknown')
                     sched.cloud_provider = config.provider
                     sched.account_name = config.account_name
+                    sched.linked_account = r.get('linked_account')
                     sched.region = r.get('region', config.default_region)
                     sched.tags_json = json.dumps(r.get('tags', {}))
                     sched.parent_resource_id = r.get('parent_resource_id')
