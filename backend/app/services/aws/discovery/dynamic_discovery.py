@@ -1,4 +1,5 @@
 import logging
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.control.control_resource import ControlResource, ServiceType, ControlType
@@ -89,7 +90,7 @@ async def discover_and_upsert_child_ec2(
                         status=state,
                         parent_resource_id=parent_resource_id,
                         is_automation_enabled=False,
-                        tags_json=tags_json
+                        tags_json=json.dumps(tags_json)
                     )
                     session.add(new_res)
                     

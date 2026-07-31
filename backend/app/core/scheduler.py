@@ -73,7 +73,23 @@ async def evaluate_resource(session, sched: ControlResource):
                 )
                 logger.info(f"[{sched.resource_id}] Pre-warning sent. Extend URL: {urls['extend_url']}")
         
-        # 4. Fetch Cloud Config
+        # 4. Optimize AWS API calls
+        is_db_running = sched.status in ['RUNNING', 'AVAILABLE']
+        is_db_stopped = sched.status in ['STOPPED', 'PAUSED', 'TERMINATED']
+        is_transitioning = sched.status in ['STARTING', 'STOPPING', 'TERMINATING']
+        
+        needs_aws_check = False
+        if is_transitioning:
+            needs_aws_check = True
+        elif target_action == 'START' and not is_db_running:
+            needs_aws_check = True
+        elif target_action == 'STOP' and not is_db_stopped:
+            needs_aws_check = True
+            
+        if not needs_aws_check:
+            return  # The database matches the desired schedule, save API costs!
+        
+        # 5. Fetch Cloud Config
         stmt = select(ConfigCloudAccount).where(ConfigCloudAccount.account_name == sched.account_name)
         res = await session.execute(stmt)
         config = res.scalars().first()
@@ -83,14 +99,14 @@ async def evaluate_resource(session, sched: ControlResource):
 
         creds = decrypt_credentials(config.encrypted_credentials)
         
-        # 5. Fetch actual live state
+        # 6. Fetch actual live state
         live_state = await control_service.get_resource_state(config.provider, creds, sched.region, sched.service_type, sched.resource_id)
         
-        # 6. Execute action if out of sync
+        # 7. Execute action if out of sync
         # Simplification: EC2 uses 'running', 'stopped'
         live_state_lower = live_state.lower() if live_state else ""
         is_live_running = live_state_lower in ['running', 'available']
-        is_live_stopped = live_state_lower in ['stopped', 'paused']
+        is_live_stopped = live_state_lower in ['stopped', 'paused', 'terminated']
         
         if target_action == 'START' and is_live_stopped:
             logger.info(f"[{sched.resource_id}] Target: START, Live: {live_state}. Executing START.")
@@ -114,7 +130,7 @@ async def evaluate_resource(session, sched: ControlResource):
             sched.saved_config_json = json.dumps(config_data)
             await session.commit()
             
-        # 7. Keep DB status perfectly in sync and detect completions
+        # 8. Keep DB status perfectly in sync and detect completions
         normalized_live = live_state.upper() if live_state else "UNKNOWN"
         if sched.status != normalized_live:
             # Prevent bouncing backwards due to AWS eventual consistency

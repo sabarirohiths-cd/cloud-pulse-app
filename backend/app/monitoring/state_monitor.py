@@ -2,17 +2,14 @@ import asyncio
 import logging
 from sqlalchemy import select
 from app.core.database import SessionLocal
-from app.models.config.config_cloud_account import ConfigCloudAccount
 from app.models.control.control_resource import ControlResource
-from app.models.control.control_action_log import ControlActionLog
-from app.services.control_service import control_service
-from app.services.aws.handlers.scale_to_zero.discovery.dynamic_discovery import discover_and_upsert_child_ec2
-from app.services.aws.session import AWSSessionManager
-from app.core.security import decrypt_credentials
+from app.monitoring.base_monitor import monitor_resource_transition
+from app.monitoring.flow.asg_flow import run_asg_flow
+from app.monitoring.flow.ecs_flow import run_ecs_flow
 
 logger = logging.getLogger(__name__)
 
-async def monitor_resource_transition(
+async def route_transition(
     account_name: str,
     region: str,
     service_type: str,
@@ -21,83 +18,15 @@ async def monitor_resource_transition(
     timeout_seconds: int = 900
 ):
     """
-    Polls the AWS live state of a resource until it reaches the target_state (e.g. STOPPED or RUNNING),
-    then updates the local database.
+    Main orchestration router. Routes to the appropriate flow based on service type.
     """
-    logger.info(f"[State Monitor] Starting tracking for {resource_id} waiting for {target_state}")
-    
-    elapsed = 0
-    poll_interval = 15
-    
-    async with SessionLocal() as db:
-        stmt = select(ConfigCloudAccount).where(ConfigCloudAccount.account_name == account_name)
-        res = await db.execute(stmt)
-        config = res.scalars().first()
-        if not config:
-            logger.error(f"[State Monitor] Account {account_name} not found")
-            return
-            
-        creds = decrypt_credentials(config.encrypted_credentials)
-        
-        while elapsed < timeout_seconds:
-            try:
-                current_status = await control_service.get_resource_state(
-                    config.provider, creds, region, service_type, resource_id
-                )
-                
-                current_status = current_status.upper() if current_status else 'UNKNOWN'
-                logger.info(f"[State Monitor] {resource_id} is currently {current_status}")
-                
-                # Check if target state reached
-                # Also handle if target is STOPPED but it got TERMINATED
-                if current_status == target_state.upper() or (target_state.upper() == 'STOPPED' and current_status == 'TERMINATED'):
-                    # Target reached, update DB!
-                    stmt = select(ControlResource).where(ControlResource.resource_id == resource_id)
-                    res = await db.execute(stmt)
-                    sched = res.scalars().first()
-                    
-                    if sched:
-                        sched.status = current_status if current_status == 'TERMINATED' else target_state.upper()
-                        
-                        import json
-                        config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
-                        action_type = config_data.get('last_action', 'MANUAL START' if target_state.upper() == 'RUNNING' else 'MANUAL STOP')
-                        
-                        log_entry = ControlActionLog(
-                            native_id=sched.resource_id,
-                            resource_name=sched.resource_name,
-                            account_name=sched.account_name,
-                            provider=sched.cloud_provider,
-                            action_type=action_type,
-                            status="SUCCESS",
-                            details=f"Resource successfully transitioned to {sched.status}."
-                        )
-                        db.add(log_entry)
-                        
-                        await db.commit()
-                        logger.info(f"[State Monitor] Successfully updated DB state for {resource_id} to {sched.status}")
-                        
-                        # Trigger targeted auto-discovery if scaling up
-                        if target_state.upper() == 'RUNNING' and service_type.upper() in ['ASG', 'ECS']:
-                            session_manager = AWSSessionManager()
-                            aws_session = session_manager.get_session(config.provider, creds, region)
-                            await discover_and_upsert_child_ec2(
-                                session=db,
-                                aws_session=aws_session,
-                                account_name=account_name,
-                                region=region,
-                                parent_service_type=service_type,
-                                parent_resource_id=resource_id
-                            )
-                            
-                    return
-            except Exception as e:
-                logger.warning(f"[State Monitor] Error polling {resource_id}: {e}")
-                
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-            
-        logger.warning(f"[State Monitor] Timeout reached while waiting for {resource_id} to reach {target_state}")
+    if service_type.upper() == 'ECS':
+        await run_ecs_flow(account_name, region, resource_id, target_state)
+    elif service_type.upper() == 'ASG':
+        await run_asg_flow(account_name, region, resource_id, target_state)
+    else:
+        # Fallback to standard base tracking for un-orchestrated resources
+        await monitor_resource_transition(account_name, region, service_type, resource_id, target_state, timeout_seconds)
 
 async def recover_orphaned_transitions():
     try:
@@ -110,7 +39,7 @@ async def recover_orphaned_transitions():
                 logger.info(f"[Recovery] Resuming orphaned state monitor for {r.resource_id} (Target: {target_state})")
                 svc_type = r.service_type.value if hasattr(r.service_type, 'value') else r.service_type
                 asyncio.create_task(
-                    monitor_resource_transition(
+                    route_transition(
                         account_name=r.account_name,
                         region=r.region,
                         service_type=svc_type,

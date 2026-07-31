@@ -86,36 +86,41 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   // Real-Time Polling Engine
   useEffect(() => {
-    const transitioningResources = resources.filter(r =>
-      !['RUNNING', 'STOPPED', 'UNKNOWN'].includes(r.status.toUpperCase())
-    );
-
-    if (transitioningResources.length === 0) return;
-
     const interval = setInterval(() => {
+      const transitioningResources = resources.filter(r =>
+        !['RUNNING', 'STOPPED', 'UNKNOWN', 'TERMINATED'].includes(r.status.toUpperCase())
+      );
+  
+      if (transitioningResources.length === 0) return;
+  
       transitioningResources.forEach(async (r) => {
         try {
           const liveData = await getDbState(r.resource_id);
-
+  
           if (liveData.status && liveData.status.toUpperCase() !== r.status.toUpperCase()) {
             const newState = liveData.status.toUpperCase();
             const oldState = r.status.toUpperCase();
-
+  
             if (oldState === 'STOPPING' && newState === 'RUNNING') return;
             if (oldState === 'STARTING' && newState === 'STOPPED') return;
-
+  
             if (oldState !== 'RUNNING' && newState === 'RUNNING') {
               toast.success(`Resource ${r.name || r.resource_id} is completely ON!`);
-            } else if (oldState !== 'STOPPED' && newState === 'STOPPED') {
+            } else if (oldState !== 'STOPPED' && newState === 'STOPPED' && newState !== 'TERMINATED') {
               toast.success(`Resource ${r.name || r.resource_id} is completely OFF!`);
             }
-
+  
             setResources(prev => prev.map(res =>
               res.resource_id === r.resource_id ? { ...res, status: newState } : res
             ));
           }
         } catch (e) {
           console.error(`Failed to poll state for ${r.resource_id}`, e);
+          if (e.response && e.response.status === 404) {
+             setResources(prev => prev.map(res =>
+               res.resource_id === r.resource_id ? { ...res, status: 'TERMINATED' } : res
+             ));
+          }
         }
       });
     }, 10000);
@@ -149,6 +154,14 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
       } else if (mode === 'start' || mode === 'stop') {
         const optimisticState = mode === 'start' ? 'STARTING' : 'STOPPING';
 
+        const toggleRes = await togglePower({
+          resource_id: resource.resource_id,
+          service_type: resource.service_type,
+          account_name: resource.account_name,
+          region: resource.region,
+          action: mode.toUpperCase()
+        });
+
         setResources(prev => prev.map(r => {
           if (r.resource_id === resource.resource_id) {
             return { ...r, status: optimisticState };
@@ -164,14 +177,6 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           }
           return r;
         }));
-
-        const toggleRes = await togglePower({
-          resource_id: resource.resource_id,
-          service_type: resource.service_type,
-          account_name: resource.account_name,
-          region: resource.region,
-          action: mode.toUpperCase()
-        });
         
         if (toggleRes && toggleRes.saved_config_json) {
           try {
@@ -198,7 +203,6 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
       }
     } catch (e) {
       toast.error(`Action Blocked: ${e.response?.data?.detail || 'Operation failed'}`);
-      setResources(prev => prev.map(r => r.resource_id === resource.resource_id ? resource : r));
     } finally {
       setModalState({ isOpen: false, mode: null, resource: null });
       if (onActionLogged) onActionLogged();
@@ -210,6 +214,26 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
     if (['RDS', 'AURORA'].includes(t)) return 'RDS';
     if (['EC2'].includes(t)) return 'EC2';
     return t;
+  };
+
+  const getStatusStyle = (status) => {
+    switch(status?.toUpperCase()) {
+      case 'RUNNING':
+      case 'AVAILABLE':
+        return 'bg-green-500/10 text-green-400 border border-green-500/20';
+      case 'STOPPED':
+      case 'PAUSED':
+      case 'TERMINATED':
+        return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+      case 'STARTING':
+      case 'PENDING':
+        return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+      case 'STOPPING':
+      case 'TERMINATING':
+        return 'bg-red-500/10 text-red-400 border border-red-500/20';
+      default:
+        return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20';
+    }
   };
 
   const uniqueGroups = Array.from(new Set(resources.map(r => getGroup(r.service_type))));
@@ -333,7 +357,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
                   <td className="p-4 text-[13px] text-zinc-400 font-medium uppercase">{r.service_type}</td>
                   <td className="p-4 text-[13px] text-zinc-400 font-medium">{r.region}</td>
                   <td className="p-4 flex flex-col items-start gap-1 justify-center min-h-[50px]">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.status === 'RUNNING' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getStatusStyle(r.status)}`}>
                       {r.status}
                     </span>
                     {isAsgManaged && (

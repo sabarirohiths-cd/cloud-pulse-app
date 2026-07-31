@@ -11,7 +11,7 @@ from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
 from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
-from app.monitoring.state_monitor import monitor_resource_transition
+from app.monitoring.state_monitor import route_transition
 
 router = APIRouter(prefix="/control", tags=["Resource Control"])
 
@@ -175,7 +175,7 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
         # Block manual actions on resources managed by a parent (e.g., EC2 managed by ASG, ASG managed by ECS Cluster)
         # Exception: ECS Services belong to a Cluster (parent), but the Service itself IS the unit of control.
         if sched and sched.parent_resource_id and sched.service_type != 'ECS':
-            raise HTTPException(status_code=400, detail=f"Cannot manually power toggle this resource because it is natively managed by a parent infrastructure layer ({sched.parent_resource_id}). Please control the parent workload instead.")
+            raise HTTPException(status_code=400, detail=f"Resource is natively managed by {sched.parent_resource_id}. Please control the parent instead.")
 
         saved_config = sched.saved_config_json if sched else None
 
@@ -229,33 +229,25 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
                     asg_sched = asg_res.scalars().first()
                     if asg_sched:
                         asg_sched.status = "STARTING" if payload.action.upper() == "START" else "STOPPING"
+                        asg_config = json.loads(asg_sched.saved_config_json) if asg_sched.saved_config_json else {}
+                        asg_config['last_action'] = "MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP"
+                        asg_sched.saved_config_json = json.dumps(asg_config)
                             
                 config_data['last_action'] = "MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP"
                 sched.saved_config_json = json.dumps(config_data)
                 
                 await db.commit()
                 
-                # Spawn background monitoring task for the main resource
+                # Spawn background monitoring task for the main resource (router will handle the flow)
                 target_state = "RUNNING" if payload.action.upper() == "START" else "STOPPED"
                 background_tasks.add_task(
-                    monitor_resource_transition,
+                    route_transition,
                     account_name=payload.account_name,
                     region=payload.region,
                     service_type=payload.service_type,
                     resource_id=payload.resource_id,
                     target_state=target_state
                 )
-                
-                # If an ASG is involved, spawn a monitor for the ASG as well
-                if config_data.get("asg_name"):
-                    background_tasks.add_task(
-                        monitor_resource_transition,
-                        account_name=payload.account_name,
-                        region=payload.region,
-                        service_type="ASG",
-                        resource_id=config_data["asg_name"],
-                        target_state=target_state
-                    )
             
         return res
     except Exception as e:
@@ -266,7 +258,7 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
             provider=config.provider,
             action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
             status="FAILED",
-            details=str(e)
+            details=str(getattr(e, 'detail', str(e)))
         )
         db.add(log_entry)
         await db.commit()
@@ -359,10 +351,12 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
             )
             print(f"[Backend Sync] Fetched {len(resources)} resources from {config.provider}.")
             
-            # Fetch existing resources from DB to track stale ones
+            # Fetch existing PARENT resources from DB to track stale ones
+            # We ignore child resources here because the global scanner does not fetch them
             stmt = select(ControlResource).where(
                 ControlResource.account_name == config.account_name,
-                ControlResource.cloud_provider == config.provider
+                ControlResource.cloud_provider == config.provider,
+                ControlResource.parent_resource_id == None
             )
             existing_schedules = (await db.execute(stmt)).scalars().all()
             existing_ids = {s.resource_id for s in existing_schedules}
@@ -407,6 +401,18 @@ async def sync_resources(account_name: Optional[str] = None, db: AsyncSession = 
                 if sched_to_delete:
                     await db.delete(sched_to_delete)
                     print(f"[Backend Sync] Deleted stale resource: {stale_id}")
+                    
+            # Garbage collect child resources that have reached TERMINATED state
+            dead_children_stmt = select(ControlResource).where(
+                ControlResource.account_name == config.account_name,
+                ControlResource.cloud_provider == config.provider,
+                ControlResource.parent_resource_id != None,
+                ControlResource.status == 'TERMINATED'
+            )
+            dead_children = (await db.execute(dead_children_stmt)).scalars().all()
+            for dead in dead_children:
+                await db.delete(dead)
+                print(f"[Backend Sync] Garbage collected dead child resource: {dead.resource_id}")
                     
             synced_count += len(resources)
                 

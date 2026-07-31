@@ -5,7 +5,7 @@ import json
 from botocore.exceptions import ClientError
 from app.services.base_handler import BaseScaleToZeroHandler
 from app.models.control.control_resource import ServiceType, ControlType
-from app.services.aws.handlers.scale_to_zero.discovery.asg_discovery import find_parent_instance_from_asg
+from app.services.aws.discovery.asg_discovery import find_parent_instance_from_asg
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,24 @@ class ASGHandler(BaseScaleToZeroHandler):
         res = client.describe_auto_scaling_groups(AutoScalingGroupNames=[native_id])
         groups = res.get('AutoScalingGroups', [])
         if groups:
-            desired = groups[0].get('DesiredCapacity', 0)
-            return 'RUNNING' if desired > 0 else 'STOPPED'
+            group = groups[0]
+            desired = group.get('DesiredCapacity', 0)
+            instances = group.get('Instances', [])
+            
+            active_instances = [i for i in instances if i.get('LifecycleState') in ['InService', 'Pending', 'Pending:Wait', 'Pending:Proceed']]
+            
+            if desired > 0:
+                # Wait for ASG to actually attach the instances before declaring it RUNNING
+                if len(active_instances) > 0:
+                    return 'RUNNING'
+                else:
+                    return 'STARTING'
+            else:
+                # Wait for ASG to actually terminate the active instances before declaring it STOPPED
+                if len(active_instances) == 0:
+                    return 'STOPPED'
+                else:
+                    return 'STOPPING'
         return "UNKNOWN"
 
     def _execute_start(self, session, native_id: str, saved_config: str, **kwargs):
@@ -87,8 +103,8 @@ class ASGHandler(BaseScaleToZeroHandler):
         return saved_config
 
     async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        from app.services.aws.handlers.scale_to_zero.discovery.ecs_discovery import async_discover_asg_and_cp_status
-        from app.services.aws.handlers.scale_to_zero.discovery.asg_discovery import async_find_parent_instance_from_asg
+        from app.services.aws.discovery.ecs_discovery import async_discover_asg_and_cp_status
+        from app.services.aws.discovery.asg_discovery import async_find_parent_instance_from_asg
         
         session = session_manager.create_async_session(credentials, region)
         resources = []
@@ -135,12 +151,12 @@ class ASGHandler(BaseScaleToZeroHandler):
                         parent_id = asg_to_cluster.get(asg_name)
                         if not parent_id:
                             # 1. Try Deep Inspection of User Data (Highly reliable for 0-capacity ECS unmanaged ASGs)
-                            from .discovery.asg_discovery import async_get_ecs_cluster_from_launch_template
+                            from app.services.aws.discovery.asg_discovery import async_get_ecs_cluster_from_launch_template
                             parent_id = await async_get_ecs_cluster_from_launch_template(asg_name, session)
                             
                         if not parent_id:
                             # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
-                            from .discovery.asg_discovery import async_find_parent_instance_from_asg
+                            from app.services.aws.discovery.asg_discovery import async_find_parent_instance_from_asg
                             parent_id = await async_find_parent_instance_from_asg(asg_name, session)
 
                         spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"

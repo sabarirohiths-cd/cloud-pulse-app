@@ -5,7 +5,7 @@ import json
 from botocore.exceptions import ClientError
 from app.services.base_handler import BaseScaleToZeroHandler
 from app.models.control.control_resource import ServiceType, ControlType
-from .discovery.ecs_discovery import discover_asg_and_cp_status
+from app.services.aws.discovery.ecs_discovery import discover_asg_and_cp_status
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +195,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         ecs.update_service(cluster=cluster_name, service=service_name, desiredCount=prev_ecs_desired)
 
     async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        from .discovery.ecs_discovery import async_discover_asg_and_cp_status
+        from app.services.aws.discovery.ecs_discovery import async_discover_asg_and_cp_status
         session = session_manager.create_async_session(credentials, region)
         resources = []
         cluster_asg_cache = {}
