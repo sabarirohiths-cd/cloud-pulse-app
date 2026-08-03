@@ -7,10 +7,11 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.system.system_notification import SystemNotification
+from app.schemas.system.system_notification import SystemNotificationResponse
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
-@router.get("")
+@router.get("", response_model=List[SystemNotificationResponse])
 async def get_notifications(limit: int = 50, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SystemNotification)
