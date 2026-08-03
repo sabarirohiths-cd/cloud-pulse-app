@@ -6,6 +6,7 @@ from app.models.control.control_resource import ControlResource
 from app.monitoring.base_monitor import monitor_resource_transition
 from app.monitoring.flow.asg_flow import run_asg_flow
 from app.monitoring.flow.ecs_flow import run_ecs_flow
+from app.monitoring.flow.eks_flow import run_eks_flow
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ async def route_transition(
     """
     if service_type.upper() == 'ECS':
         await run_ecs_flow(account_name, region, resource_id, target_state)
+    elif service_type.upper() == 'EKS':
+        await run_eks_flow(account_name, region, resource_id, target_state)
     elif service_type.upper() == 'ASG':
         await run_asg_flow(account_name, region, resource_id, target_state)
     else:

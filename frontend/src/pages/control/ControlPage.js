@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getControlSummary, getFilterOptions, syncResources } from '../../api/control';
+import { getControlSummary, getFilterOptions } from '../../api/control';
 import { listConfigs } from '../../api/config';
+import { useControlSync } from '../../utils/syncManager';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { OverviewTab } from './tabs/OverviewTab';
 import { ActivityLogTab } from './tabs/ActivityLogTab';
@@ -11,11 +12,10 @@ import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 import { NotificationBell } from '../../components/ui/NotificationBell';
 
 export default function ControlPage() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('pulse_control_active_tab') || 'overview');
   const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, active_schedules_count: 0 });
   const [syncRefreshTrigger, setSyncRefreshTrigger] = useState(0);
-  const [loading, setLoading] = useState(false);
-
+  const [loadingSummary, setLoadingSummary] = useState(false);
   // Global filters mimicking the reference UI
   const [topFilters, setTopFilters] = useState({
     provider: localStorage.getItem('pulse_control_provider') || 'AWS',
@@ -24,6 +24,8 @@ export default function ControlPage() {
     tag: 'All Tags',
     range: 30
   });
+
+  const { syncing, startControlSync } = useControlSync(topFilters?.account);
 
   useEffect(() => {
     if (topFilters.provider) localStorage.setItem('pulse_control_provider', topFilters.provider);
@@ -130,29 +132,16 @@ export default function ControlPage() {
     }
   };
 
-  const handleSync = async () => {
-    setLoading(true);
-      console.log(`[Sync Process] Starting sync for account: ${topFilters.account}`);
-      try {
-        const response = await syncResources(topFilters.account);
-        console.log(`[Sync Process] Backend response:`, response);
-        if (response && response.synced_count !== undefined) {
-          toast.success(`Synced ${response.synced_count} resources for ${topFilters.account}`);
-        } else {
-          toast.success(`Account ${topFilters.account} synced successfully`);
-        }
-        await loadSummary();
-        setSyncRefreshTrigger(prev => prev + 1);
-    } catch (err) {
-      console.error("[Sync Process] Error during sync:", err);
-      toast.error("Failed to sync resources from AWS. Check browser console for details.");
-    } finally {
-      setLoading(false);
-    }
+  const handleSync = () => {
+    console.log(`[Sync Process] Starting sync for account: ${topFilters.account}`);
+    startControlSync(topFilters.account, async () => {
+      await loadSummary();
+      setSyncRefreshTrigger(prev => prev + 1);
+    });
   };
 
   const loadSummary = async () => {
-    setLoading(true);
+    setLoadingSummary(true);
     try {
       const summaryData = await getControlSummary(topFilters);
       if (summaryData) {
@@ -161,7 +150,7 @@ export default function ControlPage() {
     } catch (err) {
       toast.error('Failed to load summary from backend');
     } finally {
-      setLoading(false);
+      setLoadingSummary(false);
     }
   };
 
@@ -182,8 +171,8 @@ export default function ControlPage() {
         </div>
         <div className="flex items-center gap-4">
           <NotificationBell />
-          <button onClick={handleSync} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />{loading ? 'Syncing...' : 'Sync Now'}
+          <button onClick={handleSync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+            <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
           </button>
         </div>
       </div>
@@ -214,7 +203,10 @@ export default function ControlPage() {
         {['overview', 'activity', 'resources'].map(t => (
           <button
             key={t}
-            onClick={() => setActiveTab(t)}
+            onClick={() => {
+              setActiveTab(t);
+              localStorage.setItem('pulse_control_active_tab', t);
+            }}
             className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${activeTab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
           >
             {t}

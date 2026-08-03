@@ -13,4 +13,3 @@ azure-mgmt-resourcegraph
 google-auth
 google-cloud-asset
 aiobotocore>=2.12.3
-aioboto3

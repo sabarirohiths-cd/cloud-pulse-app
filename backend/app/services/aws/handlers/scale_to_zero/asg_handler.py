@@ -102,91 +102,88 @@ class ASGHandler(BaseScaleToZeroHandler):
         
         return saved_config
 
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        from app.services.aws.discovery.ecs_discovery import async_discover_asg_and_cp_status
-        from app.services.aws.discovery.asg_discovery import async_find_parent_instance_from_asg
+    def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
+        from app.services.aws.discovery.ecs_discovery import discover_asg_and_cp_status
+        from app.services.aws.discovery.asg_discovery import find_parent_instance_from_asg, get_ecs_cluster_from_launch_template
+        from app.services.aws.discovery.eks_discovery import map_all_eks_unmanaged_asgs
         
-        session = session_manager.create_async_session(credentials, region)
         resources = []
-        
         cp_asgs = {}
         asg_to_cluster = {}
         
-        async with session.client('autoscaling', region_name=region) as client, session.client('ecs', region_name=region) as ecs_client:
-            try:
-                cluster_paginator = ecs_client.get_paginator('list_clusters')
-                async for cluster_page in cluster_paginator.paginate():
-                    for cluster_arn in cluster_page.get('clusterArns', []):
-                        cl_name = cluster_arn.split('/')[-1]
-                        try:
-                            _, managed_asgs, unmanaged_asgs = await async_discover_asg_and_cp_status(session, cl_name)
-                            mapped_asg_names = managed_asgs + unmanaged_asgs
-                            for asg_name in mapped_asg_names:
-                                asg_to_cluster[asg_name] = cl_name
-                        except Exception:
-                            pass
-                            
-                cp_res = await ecs_client.describe_capacity_providers()
-                for cp in cp_res.get('capacityProviders', []):
-                    asg_arn = cp.get('autoScalingGroupProvider', {}).get('autoScalingGroupArn')
-                    status = cp.get('autoScalingGroupProvider', {}).get('managedScaling', {}).get('status', 'DISABLED')
-                    if asg_arn:
-                        asg_name_cp = asg_arn.split('autoScalingGroupName/')[-1]
-                        cp_asgs[asg_name_cp] = status
-            except Exception as e:
-                logger.warning(f"Error mapping capacity providers in ASG async scan: {e}")
+        client = session.client('autoscaling', region_name=region)
+        ecs_client = session.client('ecs', region_name=region)
 
-            try:
-                paginator = client.get_paginator('describe_auto_scaling_groups')
-                async for page in paginator.paginate():
-                    for asg in page['AutoScalingGroups']:
-                        asg_name = asg['AutoScalingGroupName']
+        try:
+            cluster_paginator = ecs_client.get_paginator('list_clusters')
+            for cluster_page in cluster_paginator.paginate():
+                for cluster_arn in cluster_page.get('clusterArns', []):
+                    cl_name = cluster_arn.split('/')[-1]
+                    try:
+                        _, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cl_name)
+                        mapped_asg_names = managed_asgs + unmanaged_asgs
+                        for asg_name in mapped_asg_names:
+                            asg_to_cluster[asg_name] = cl_name
+                    except Exception:
+                        pass
                         
-                        tags_list = asg.get('Tags', [])
-                        tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
+            cp_res = ecs_client.describe_capacity_providers()
+            for cp in cp_res.get('capacityProviders', []):
+                asg_arn = cp.get('autoScalingGroupProvider', {}).get('autoScalingGroupArn')
+                status = cp.get('autoScalingGroupProvider', {}).get('managedScaling', {}).get('status', 'DISABLED')
+                if asg_arn:
+                    asg_name_cp = asg_arn.split('autoScalingGroupName/')[-1]
+                    cp_asgs[asg_name_cp] = status
+        except Exception as e:
+            logger.warning(f"Error mapping capacity providers in ASG sync scan: {e}")
 
-                        desired = asg.get('DesiredCapacity', 0)
-                        status = 'RUNNING' if desired > 0 else 'STOPPED'
-                        
-                        parent_id = asg_to_cluster.get(asg_name)
-                        if not parent_id:
-                            # 1. Try Deep Inspection of User Data (Highly reliable for 0-capacity ECS unmanaged ASGs)
-                            from app.services.aws.discovery.asg_discovery import async_get_ecs_cluster_from_launch_template
-                            parent_id = await async_get_ecs_cluster_from_launch_template(asg_name, session)
-                            
-                        if not parent_id:
-                            # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
-                            from app.services.aws.discovery.asg_discovery import async_find_parent_instance_from_asg
-                            parent_id = await async_find_parent_instance_from_asg(asg_name, session)
+        # Map EKS ASGs
+        eks_asg_map = map_all_eks_unmanaged_asgs(session, region)
 
-                        spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
-                        if asg_name in cp_asgs:
-                            cp_status = cp_asgs[asg_name]
-                            spec = f"ECS CP ({cp_status}) | {spec}"
-                        elif parent_id and asg_name in asg_to_cluster:
-                            spec = f"ECS (Unmanaged) | {spec}"
-                        elif any('ecs' in t.get('Key').lower() or 'ecs' in t.get('Value', '').lower() for t in tags_list):
-                            spec = f"ECS (Unmanaged) | {spec}"
-                            
-                        resources.append({
-                            'resource_id': asg_name,
-                            'resource_name': asg_name,
-                            'cloud_provider': 'aws',
-                            'region': region,
-                            'service_type': ServiceType.ASG.value,
-                            'control_type': ControlType.SCALE_TO_ZERO.value,
-                            'status': status,
-                            'instance_spec': spec,
-                            'tags': tags_dict,
-                            'parent_resource_id': parent_id,
-                            'last_synced_at': datetime.now(timezone.utc)
-                        })
+        paginator = client.get_paginator('describe_auto_scaling_groups')
+        for page in paginator.paginate():
+            for asg in page['AutoScalingGroups']:
+                asg_name = asg['AutoScalingGroupName']
+                
+                tags_list = asg.get('Tags', [])
+                tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
 
-            except ClientError as e:
-                from app.services.base_handler import parse_aws_client_error
-                self.log_once("ASGHandler", parse_aws_client_error(e))
-            except Exception as e:
-                from app.services.base_handler import parse_aws_client_error
-                self.log_once("ASGHandler", parse_aws_client_error(e))
+                desired = asg.get('DesiredCapacity', 0)
+                status = 'RUNNING' if desired > 0 else 'STOPPED'
+                
+                parent_id = asg_to_cluster.get(asg_name)
+                if not parent_id:
+                    # 1. Try Deep Inspection of User Data (Highly reliable for 0-capacity ECS unmanaged ASGs)
+                    parent_id = get_ecs_cluster_from_launch_template(asg_name, session)
+                    
+                if not parent_id:
+                    # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
+                    parent_id = find_parent_instance_from_asg(asg_name, session)
+
+                spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
+                if asg_name in eks_asg_map:
+                    parent_id = eks_asg_map[asg_name]
+                    spec = f"EKS (Unmanaged) | {spec}"
+                elif asg_name in cp_asgs:
+                    cp_status = cp_asgs[asg_name]
+                    spec = f"ECS CP ({cp_status}) | {spec}"
+                elif parent_id and asg_name in asg_to_cluster:
+                    spec = f"ECS (Unmanaged) | {spec}"
+                elif any('ecs' in t.get('Key').lower() or 'ecs' in t.get('Value', '').lower() for t in tags_list):
+                    spec = f"ECS (Unmanaged) | {spec}"
+                    
+                resources.append({
+                    'resource_id': asg_name,
+                    'resource_name': asg_name,
+                    'cloud_provider': 'aws',
+                    'region': region,
+                    'service_type': ServiceType.ASG.value,
+                    'control_type': ControlType.SCALE_TO_ZERO.value,
+                    'status': status,
+                    'instance_spec': spec,
+                    'tags': tags_dict,
+                    'parent_resource_id': parent_id,
+                    'last_synced_at': datetime.now(timezone.utc)
+                })
 
         return resources

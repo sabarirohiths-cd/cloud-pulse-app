@@ -35,6 +35,9 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
         account,
         changeFilter,
         search.trim(),
+        topFilters.region,
+        topFilters.linked,
+        topFilters.tag,
         LIMIT,
         currentOffset
       );
@@ -51,7 +54,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
     } finally {
       setLoading(false);
     }
-  }, [account, provider, topFilters.range, changeFilter, search, offset, loading, hasMore]);
+  }, [account, provider, topFilters.range, topFilters.region, topFilters.linked, topFilters.tag, changeFilter, search, offset, loading, hasMore]);
 
   // Fetch on mount or when filters change
   useEffect(() => {
@@ -61,7 +64,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
     }, search ? 300 : 0);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, topFilters.range, changeFilter, search]);
+  }, [account, topFilters.range, topFilters.region, topFilters.linked, topFilters.tag, changeFilter, search]);
 
   return (
     <div className="space-y-4">

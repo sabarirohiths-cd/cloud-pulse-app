@@ -11,6 +11,12 @@ export const syncResources = async (accountName) => {
   return response.data;
 };
 
+export const getControlSyncStatus = async (accountName) => {
+  const params = accountName && accountName !== 'All Accounts' ? { account_name: accountName } : {};
+  const response = await apiClient.get('/control/sync-status', { params });
+  return response.data;
+};
+
 export const listResources = async (filters = {}, limit = 50, offset = 0) => {
   const params = { limit, offset };
   if (filters.account && filters.account !== 'All Accounts') params.account_name = filters.account;

@@ -17,11 +17,14 @@ const getInventoryTrend = async (account, resourceType, days) => {
   return response.data;
 };
 
-const getInventoryChanges = async (account, days, change_type, search, limit, offset) => {
+const getInventoryChanges = async (account, days, change_type, search, region, linked_account, tag, limit, offset) => {
   const params = { account };
   if (days) params.days = days;
   if (change_type && change_type !== 'All') params.change_type = change_type;
   if (search) params.search = search;
+  if (region && region !== 'All Regions') params.region = region;
+  if (linked_account && linked_account !== 'All Accounts') params.linked_account = linked_account;
+  if (tag && tag !== 'All') params.tag = tag;
   if (limit) params.limit = limit;
   if (offset !== undefined) params.offset = offset;
   const response = await apiClient.get('/inventory/changes', { params });
@@ -47,6 +50,11 @@ export const wipeDatabase = async (account, provider) => {
 
 const clientTriggerSync = async (provider, configId) => {
   const response = await apiClient.post(`/inventory/sync?provider=${provider}&config_id=${configId}`);
+  return response.data;
+};
+
+export const getInventorySyncStatus = async (account) => {
+  const response = await apiClient.get('/inventory/sync-status', { params: { account_name: account } });
   return response.data;
 };
 
@@ -83,8 +91,8 @@ export const getFilterOptions = async (account, provider) => {
   return { data: response.data };
 };
 
-export const getChanges = async (provider, configId, days, account, change_type, search, limit = 50, offset = 0) => {
-  const raw = await getInventoryChanges(account, days, change_type, search, limit, offset);
+export const getChanges = async (provider, configId, days, account, change_type, search, region, linked_account, tag, limit = 50, offset = 0) => {
+  const raw = await getInventoryChanges(account, days, change_type, search, region, linked_account, tag, limit, offset);
   const changes = (raw.changes || raw).map(c => ({
     change_type: c.change_type,
     resource_id: c.native_id,

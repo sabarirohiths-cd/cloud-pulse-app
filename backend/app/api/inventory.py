@@ -12,53 +12,99 @@ import json
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
+from app.core.database import SessionLocal
+from app.services.sync_tracker import set_sync_status, get_sync_status
+import asyncio
+
+async def _background_inventory_sync(provider: str, config_id: int):
+    # First get the account name to set status
+    account_name = "UNKNOWN"
+    try:
+        async with SessionLocal() as db:
+            db_config = await db.get(ConfigCloudAccount, config_id)
+            if not db_config:
+                return
+            account_name = db_config.account_name
+            from app.core.security import decrypt_credentials
+            creds = decrypt_credentials(db_config.encrypted_credentials)
+            default_region = db_config.default_region
+    except Exception as e:
+        print(f"Background inventory sync failed to fetch config: {e}")
+        return f"Failed: {str(e)}"
+        
+    set_sync_status("inventory", account_name, True)
+    
+    try:
+        if provider == "aws":
+            aws_service = AWSService()
+            is_valid, msg = await aws_service.test_connection(creds)
+            if not is_valid:
+                raise Exception(f"AWS Authentication failed: {msg}")
+            fetched_resources = await aws_service.fetch_all_resources(creds, default_region)
+        elif provider == "azure":
+            from app.services.azure.service import AzureService
+            azure_service = AzureService()
+            is_valid, msg = await azure_service.test_connection(creds)
+            if not is_valid:
+                raise Exception(f"Azure Authentication failed: {msg}")
+            sub_id = creds.get('subscription_id')
+            fetched_resources = await azure_service.fetch_all_resources(creds, sub_id)
+        elif provider == "gcp":
+            from app.services.gcp.service import GCPService
+            gcp_service = GCPService()
+            is_valid, msg = await gcp_service.test_connection(creds)
+            if not is_valid:
+                raise Exception(f"GCP Authentication failed: {msg}")
+            fetched_resources = await gcp_service.fetch_all_resources(creds)
+        else:
+            raise Exception("Unsupported cloud provider")
+        
+        async with SessionLocal() as db:
+            metrics = await sync_inventory(db, provider, account_name, fetched_resources)
+            
+            from app.models.system.system_notification import SystemNotification
+            msg = f"Synced {metrics['total_active']} resources • {metrics['created']} new • {metrics['deleted']} deleted"
+            notification = SystemNotification(
+                title="Inventory Sync Completed",
+                message=msg,
+                type="SUCCESS",
+                module="INVENTORY"
+            )
+            db.add(notification)
+            await db.commit()
+            return msg
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Background inventory sync failed: {e}")
+        return f"Failed: {str(e)}"
+
 @router.post("/sync")
 async def trigger_sync(
     provider: str = Query(...), 
     config_id: int = Query(...),
     db: AsyncSession = Depends(get_db)
 ):
+    # Need to quickly get account_name to check if it's already syncing
     db_config = await db.get(ConfigCloudAccount, config_id)
     if not db_config:
         raise HTTPException(status_code=404, detail="Config not found")
         
-    # Release the database lock before starting the long-running AWS scan!
-    await db.commit()
+    if get_sync_status("inventory", db_config.account_name):
+        return {"status": "already_syncing"}
         
-    from app.core.security import decrypt_credentials
-    creds = decrypt_credentials(db_config.encrypted_credentials)
+    async def task_wrapper():
+        msg = await _background_inventory_sync(provider, config_id)
+        if db_config.account_name:
+            set_sync_status("inventory", db_config.account_name, False, msg)
 
-    if provider == "aws":
-        aws_service = AWSService()
-        is_valid, msg = await aws_service.test_connection(creds)
-        if not is_valid:
-            raise HTTPException(status_code=401, detail=f"AWS Authentication failed: {msg}")
-        try:
-            fetched_resources = await aws_service.fetch_all_resources(creds, db_config.default_region)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-    elif provider == "azure":
-        from app.services.azure.service import AzureService
-        azure_service = AzureService()
-        is_valid, msg = await azure_service.test_connection(creds)
-        if not is_valid:
-            raise HTTPException(status_code=401, detail=f"Azure Authentication failed: {msg}")
-        sub_id = creds.get('subscription_id')
-        fetched_resources = await azure_service.fetch_all_resources(creds, sub_id)
-    elif provider == "gcp":
-        from app.services.gcp.service import GCPService
-        gcp_service = GCPService()
-        is_valid, msg = await gcp_service.test_connection(creds)
-        if not is_valid:
-            raise HTTPException(status_code=401, detail=f"GCP Authentication failed: {msg}")
-        fetched_resources = await gcp_service.fetch_all_resources(creds)
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported cloud provider")
-    
-    metrics = await sync_inventory(db, provider, db_config.account_name, fetched_resources)
-    
-    response = {"status": "success", "metrics": metrics}
-    return response
+    asyncio.create_task(task_wrapper())
+    return {"status": "started"}
+
+@router.get("/sync-status")
+async def get_inventory_sync_status(account_name: str = Query(...)):
+    from app.services.sync_tracker import get_sync_state
+    return get_sync_state("inventory", account_name)
 
 @router.get("/summary")
 async def get_summary(account: str = Query(None), db: AsyncSession = Depends(get_db)):
@@ -123,6 +169,9 @@ async def get_changes(
     days: int = Query(30), 
     change_type: str = Query(None),
     search: str = Query(None),
+    region: str = Query(None),
+    linked_account: str = Query(None),
+    tag: str = Query(None),
     limit: int = Query(50),
     offset: int = Query(0),
     db: AsyncSession = Depends(get_db)
@@ -144,6 +193,13 @@ async def get_changes(
                 InventoryResource.name.ilike(search_term)
             )
         )
+        
+    if region and region != 'All Regions':
+        conditions.append(InventoryResource.region == region)
+    if linked_account and linked_account != 'All Accounts':
+        conditions.append(InventoryResource.linked_account == linked_account)
+    if tag and tag != 'All':
+        conditions.append(InventoryResource.tags.like(f'%"{tag}"%'))
         
     # Count query
     count_stmt = select(func.count(InventoryChange.id)).outerjoin(

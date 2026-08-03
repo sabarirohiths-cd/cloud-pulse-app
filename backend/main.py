@@ -13,6 +13,15 @@ from app.api import cloud_config, control, actions, inventory, notifications
 
 logger = logging.getLogger(__name__)
 
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.args and len(record.args) >= 3 and not any(
+            x in record.args[2] for x in ("/sync-status", "/notifications")
+        )
+
+# Filter out frequent polling from uvicorn access logs
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing database and background scheduler...")
@@ -33,6 +42,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    max_age=86400,
 )
 
 @app.exception_handler(Exception)

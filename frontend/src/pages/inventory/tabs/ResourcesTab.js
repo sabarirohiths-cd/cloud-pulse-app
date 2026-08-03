@@ -13,22 +13,8 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
   const [loading, setLoading] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
   const [offset, setOffset] = React.useState(0);
-  const [localDynamicRegions, setLocalDynamicRegions] = React.useState([]);
-  const [localDynamicTypes, setLocalDynamicTypes] = React.useState([]);
-
+  
   const strategy = getStrategy(provider);
-  const localDynamicGroups = React.useMemo(() => {
-    const groupCounts = {};
-    localDynamicTypes.forEach(t => {
-      const g = strategy.getResourceGroup(t.type, '');
-      if (g) groupCounts[g] = (groupCounts[g] || 0) + t.count;
-    });
-    return Object.entries(groupCounts)
-      .map(([group, count]) => ({ group, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [localDynamicTypes, strategy]);
-
-
 
   const LIMIT = 50;
 
@@ -42,10 +28,8 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
       // If group is selected but no specific type, get all types in that group
       let typeParam = filter.type;
       if (filter.group !== 'All' && filter.type === 'All') {
-        const strategy = getStrategy(provider);
-        const groupTypes = localDynamicTypes
-          .filter(t => strategy.getResourceGroup(t.type, '') === filter.group)
-          .map(t => t.type);
+        // dynamicTypes from InventoryPage is ALREADY filtered down to the current filter.group!
+        const groupTypes = dynamicTypes.map(t => t.type);
         if (groupTypes.length > 0) {
           typeParam = groupTypes.join(',');
         } else {
@@ -75,14 +59,7 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
       );
 
       const newResources = res.data.resources;
-
-      if (res.data.region_breakdown && filter.region === 'All') {
-        setLocalDynamicRegions(res.data.region_breakdown);
-      }
-      if (res.data.type_breakdown && filter.type === 'All' && filter.group === 'All') {
-        setLocalDynamicTypes(res.data.type_breakdown);
-      }
-
+      
       setResources(prev => reset ? newResources : [...prev, ...newResources]);
       setOffset(currentOffset + LIMIT);
       setHasMore(newResources.length === LIMIT);
@@ -119,9 +96,9 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
         showLabel={true}
         className="flex flex-wrap items-center gap-4 mb-4"
         filters={[
-          { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Services', value: 'All' }, ...localDynamicGroups.map(g => ({ label: `${g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[160px]" },
-          { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...(filter.group === 'All' ? [] : localDynamicTypes.filter(t => strategy.getResourceGroup(t.type, '') === filter.group).map(t => ({ label: `${formatType(t.type, provider)} (${t.count})`, value: t.type })))], width: "max-w-[200px]" },
-          { label: "Region:", value: filter.region, onChange: v => setFilter({ ...filter, region: v }), options: [{ label: 'All Regions', value: 'All' }, ...localDynamicRegions.map(r => ({ label: `${r.region} (${r.count})`, value: r.region }))], width: "max-w-[160px]" },
+          { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Services', value: 'All' }, ...dynamicGroups.map(g => ({ label: `${g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[160px]" },
+          { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...(filter.group === 'All' ? [] : dynamicTypes.map(t => ({ label: `${formatType(t.type, provider)} (${t.count})`, value: t.type })))], width: "max-w-[200px]" },
+          { label: "Region:", value: filter.region, onChange: v => setFilter({ ...filter, region: v }), options: [{ label: 'All Regions', value: 'All' }, ...dynamicRegions.map(r => ({ label: `${r.region} (${r.count})`, value: r.region }))], width: "max-w-[160px]" },
           { label: "Billable:", value: filter.billable, onChange: v => setFilter({ ...filter, billable: v }), options: [{ label: 'All Statuses', value: 'All' }, { label: 'Billable', value: 'true' }, { label: 'Non-Billable', value: 'false' }], width: "w-[90px]" },
           { label: "Time:", value: filter.time, onChange: v => setFilter({ ...filter, time: v }), options: [{ label: 'All Time', value: 'All' }, { label: 'Today', value: 'Today' }], width: "w-[70px]" }
         ]}

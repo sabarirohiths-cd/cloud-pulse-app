@@ -194,80 +194,79 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         # 2. Restore ECS Service
         ecs.update_service(cluster=cluster_name, service=service_name, desiredCount=prev_ecs_desired)
 
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
-        from app.services.aws.discovery.ecs_discovery import async_discover_asg_and_cp_status
-        session = session_manager.create_async_session(credentials, region)
+    def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
+        from app.services.aws.discovery.ecs_discovery import discover_asg_and_cp_status
         resources = []
         cluster_asg_cache = {}
 
-        async with session.client('ecs', region_name=region) as ecs:
-            try:
-                cluster_paginator = ecs.get_paginator('list_clusters')
-                async for cluster_page in cluster_paginator.paginate():
-                    for cluster_arn in cluster_page.get('clusterArns', []):
-                        cluster_name = cluster_arn.split('/')[-1]
-                                
-                        service_paginator = ecs.get_paginator('list_services')
-                        async for service_page in service_paginator.paginate(cluster=cluster_arn):
-                            service_arns = service_page.get('serviceArns', [])
+        ecs = session.client('ecs', region_name=region)
+        try:
+            cluster_paginator = ecs.get_paginator('list_clusters')
+            for cluster_page in cluster_paginator.paginate():
+                for cluster_arn in cluster_page.get('clusterArns', []):
+                    cluster_name = cluster_arn.split('/')[-1]
                             
-                            if not service_arns:
-                                continue
+                    service_paginator = ecs.get_paginator('list_services')
+                    for service_page in service_paginator.paginate(cluster=cluster_arn):
+                        service_arns = service_page.get('serviceArns', [])
+                        
+                        if not service_arns:
+                            continue
+                            
+                        for i in range(0, len(service_arns), 10):
+                            batch = service_arns[i:i+10]
+                            res = ecs.describe_services(cluster=cluster_arn, services=batch, include=['TAGS'])
+                            for svc in res.get('services', []):
+                                if svc.get('schedulingStrategy') == 'DAEMON':
+                                    continue
+                                    
+                                svc_arn = svc.get('serviceArn')
+                                svc_name = svc.get('serviceName')
+                                desired = svc.get('desiredCount', 0)
+                                status = 'RUNNING' if desired > 0 else 'STOPPED'
                                 
-                            for i in range(0, len(service_arns), 10):
-                                batch = service_arns[i:i+10]
-                                res = await ecs.describe_services(cluster=cluster_arn, services=batch, include=['TAGS'])
-                                for svc in res.get('services', []):
-                                    if svc.get('schedulingStrategy') == 'DAEMON':
-                                        continue
-                                        
-                                    svc_arn = svc.get('serviceArn')
-                                    svc_name = svc.get('serviceName')
-                                    desired = svc.get('desiredCount', 0)
-                                    status = 'RUNNING' if desired > 0 else 'STOPPED'
-                                    
-                                    is_fargate = False
-                                    if svc.get('launchType') == 'FARGATE':
-                                        is_fargate = True
-                                    else:
-                                        for cp in svc.get('capacityProviderStrategy', []):
-                                            if cp.get('capacityProvider', '').startswith('FARGATE'):
-                                                is_fargate = True
-                                                break
-                                                
-                                    asg_name = None
-                                    if not is_fargate:
-                                        try:
-                                            has_cp, managed, unmanaged = await async_discover_asg_and_cp_status(session, cluster_name, svc_name)
-                                            all_asgs = managed + unmanaged
-                                            if all_asgs:
-                                                asg_name = all_asgs[0]
-                                        except Exception as e:
-                                            logger.warning(f"Failed to discover ASG for {svc_name}: {e}")
+                                is_fargate = False
+                                if svc.get('launchType') == 'FARGATE':
+                                    is_fargate = True
+                                else:
+                                    for cp in svc.get('capacityProviderStrategy', []):
+                                        if cp.get('capacityProvider', '').startswith('FARGATE'):
+                                            is_fargate = True
+                                            break
+                                            
+                                asg_name = None
+                                if not is_fargate:
+                                    try:
+                                        has_cp, managed, unmanaged = discover_asg_and_cp_status(session, cluster_name, svc_name)
+                                        all_asgs = managed + unmanaged
+                                        if all_asgs:
+                                            asg_name = all_asgs[0]
+                                    except Exception as e:
+                                        logger.warning(f"Failed to discover ASG for {svc_name}: {e}")
 
-                                    if is_fargate:
-                                        spec_type = "FARGATE"
-                                    elif asg_name:
-                                        spec_type = f"ASG: {asg_name}"
-                                    else:
-                                        spec_type = "EC2"
-                                    
-                                    tags_list = svc.get('tags', [])
-                                    tags_dict = {t.get('key'): t.get('value') for t in tags_list}
-                                    
-                                    resources.append({
-                                        'resource_id': svc_arn,
-                                        'resource_name': svc_name,
-                                        'cloud_provider': 'aws',
-                                        'region': region,
-                                        'service_type': ServiceType.ECS.value,
-                                        'control_type': ControlType.SCALE_TO_ZERO.value,
-                                        'status': status,
-                                        'instance_spec': f"{spec_type} | Tasks: {desired}",
-                                        'tags': tags_dict,
-                                        'parent_resource_id': cluster_name,
-                                    })
-            except Exception as e:
-                logger.error(f"Error scanning ECS in region {region}: {e}")
-                
+                                if is_fargate:
+                                    spec_type = "FARGATE"
+                                elif asg_name:
+                                    spec_type = f"ASG: {asg_name}"
+                                else:
+                                    spec_type = "EC2"
+                                
+                                tags_list = svc.get('tags', [])
+                                tags_dict = {t.get('key'): t.get('value') for t in tags_list}
+                                
+                                resources.append({
+                                    'resource_id': svc_arn,
+                                    'resource_name': svc_name,
+                                    'cloud_provider': 'aws',
+                                    'region': region,
+                                    'service_type': ServiceType.ECS.value,
+                                    'control_type': ControlType.SCALE_TO_ZERO.value,
+                                    'status': status,
+                                    'instance_spec': f"{spec_type} | Tasks: {desired}",
+                                    'tags': tags_dict,
+                                    'parent_resource_id': cluster_name,
+                                })
+        except Exception as e:
+            logger.error(f"Error scanning ECS in region {region}: {e}")
+            
         return resources

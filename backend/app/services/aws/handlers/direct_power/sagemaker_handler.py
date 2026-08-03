@@ -36,32 +36,23 @@ class SageMakerHandler(BaseDirectPowerHandler):
         client = session.client('sagemaker')
         client.stop_notebook_instance(NotebookInstanceName=native_id)
 
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         resources = []
-        try:
-            session = session_manager.create_async_session(credentials, region)
-            async with session.client('sagemaker', region_name=region) as client:
-                paginator = client.get_paginator('list_notebook_instances')
-                async for page in paginator.paginate():
-                    for nb in page.get('NotebookInstances', []):
-                        resources.append({
-                            'resource_id': nb['NotebookInstanceName'],
-                            'resource_name': nb['NotebookInstanceName'],
-                            'cloud_provider': 'aws',
-                            'region': region,
-                            'service_type': ServiceType.SAGEMAKER.value,
-                            'control_type': ControlType.DIRECT_POWER.value,
-                            'status': normalize_sagemaker_status(nb.get('NotebookInstanceStatus', 'unknown')),
-                            'instance_spec': nb.get('InstanceType', 'unknown'),
-                            'tags': {},
-                            'last_synced_at': datetime.now(timezone.utc)
-                        })
-
-        except ClientError as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("SageMakerHandler", parse_aws_client_error(e))
-        except Exception as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("SageMakerHandler", parse_aws_client_error(e))
+        client = session.client('sagemaker', region_name=region)
+        paginator = client.get_paginator('list_notebook_instances')
+        for page in paginator.paginate():
+            for nb in page.get('NotebookInstances', []):
+                resources.append({
+                    'resource_id': nb['NotebookInstanceName'],
+                    'resource_name': nb['NotebookInstanceName'],
+                    'cloud_provider': 'aws',
+                    'region': region,
+                    'service_type': ServiceType.SAGEMAKER.value,
+                    'control_type': ControlType.DIRECT_POWER.value,
+                    'status': normalize_sagemaker_status(nb.get('NotebookInstanceStatus', 'unknown')),
+                    'instance_spec': nb.get('InstanceType', 'unknown'),
+                    'tags': {},
+                    'last_synced_at': datetime.now(timezone.utc)
+                })
 
         return resources

@@ -3,6 +3,8 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.control.control_resource import ControlResource, ServiceType, ControlType
+from app.models.control.control_action_log import ControlActionLog
+from app.models.system.system_notification import SystemNotification
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,26 @@ async def discover_and_upsert_child_ec2(
                         tags_json=json.dumps(tags_json)
                     )
                     session.add(new_res)
+                    
+                    # Log the dynamic discovery
+                    log_entry = ControlActionLog(
+                        native_id=inst_id,
+                        resource_name=name,
+                        account_name=account_name,
+                        provider="aws",
+                        action_type="DISCOVERED",
+                        status="SUCCESS",
+                        details=f"Child resource dynamically discovered via {parent_service_type} scaling."
+                    )
+                    session.add(log_entry)
+                    
+                    notification = SystemNotification(
+                        title="New Resource Discovered",
+                        message=f"{name} ({inst_id}) was dynamically discovered via {parent_service_type} scaling.",
+                        type="INFO",
+                        module="CONTROL"
+                    )
+                    session.add(notification)
                     
         await session.commit()
         logger.info(f"[Discovery] Upserted {len(instance_ids)} EC2 instances for parent {parent_resource_id}")

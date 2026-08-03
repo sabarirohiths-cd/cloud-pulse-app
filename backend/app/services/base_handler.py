@@ -35,7 +35,7 @@ class ControlResourceHandler(ABC):
             logging.warning(f"[{service_name}] {error_message}")
             
     @abstractmethod
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         """Discover resources of this type in a given region."""
         pass
 
@@ -59,6 +59,16 @@ class BaseDirectPowerHandler(ControlResourceHandler):
     Base class for resources that support Direct Power Control (Native Start/Stop).
     Handles boilerplate Boto3 async dispatching and error catching.
     """
+    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+        def _scan():
+            session = session_manager.create_session(credentials, region)
+            try:
+                return self._execute_scan_region(session, region)
+            except Exception as e:
+                self.log_once(self.__class__.__name__, parse_aws_client_error(e))
+                return []
+        return await asyncio.to_thread(_scan)
+
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
         def _get():
             session = session_manager.create_session(credentials, region)
@@ -121,6 +131,16 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
     Base class for resources that are scaled to zero (e.g. ASG, ECS).
     Maintains capacity state using saved_config JSON.
     """
+    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+        def _scan():
+            session = session_manager.create_session(credentials, region)
+            try:
+                return self._execute_scan_region(session, region)
+            except Exception as e:
+                self.log_once(self.__class__.__name__, parse_aws_client_error(e))
+                return []
+        return await asyncio.to_thread(_scan)
+
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
         def _get():
             session = session_manager.create_session(credentials, region)

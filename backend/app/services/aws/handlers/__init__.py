@@ -6,6 +6,7 @@ from .direct_power.sagemaker_handler import SageMakerHandler
 from .direct_power.workspaces_handler import WorkSpacesHandler
 from .scale_to_zero.asg_handler import ASGHandler
 from .scale_to_zero.ecs_handler import ECSScaleToZeroHandler
+from .scale_to_zero.eks_handler import EKSHandler
 
 # Registry of active AWS resource handlers
 # Add new handlers here to instantly enable discovery and control across the platform.
@@ -17,5 +18,6 @@ REGISTERED_HANDLERS = [
     SageMakerHandler(),
     WorkSpacesHandler(),
     ASGHandler(),
-    ECSScaleToZeroHandler()
+    ECSScaleToZeroHandler(),
+    EKSHandler()
 ]

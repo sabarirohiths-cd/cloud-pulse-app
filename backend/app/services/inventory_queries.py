@@ -49,6 +49,24 @@ class InventoryQueryService:
         deleted_today_stmt = select(func.count()).where(and_(*del_conds))
         deleted_today = (await db.execute(deleted_today_stmt)).scalar() or 0
         
+        # 4.5 Deleted Type Breakdown
+        del_type_conds = [InventoryResource.status == "deleted"]
+        if account: del_type_conds.append(InventoryResource.account_name == account)
+        if provider: del_type_conds.append(InventoryResource.provider == provider)
+        if region and region != 'All Regions': del_type_conds.append(InventoryResource.region == region)
+        if linked_account and linked_account != 'All Accounts': del_type_conds.append(InventoryResource.linked_account == linked_account)
+        if tag and tag != 'All': del_type_conds.append(InventoryResource.tags.like(f'%"{tag}"%'))
+        
+        del_type_stmt = select(InventoryResource.resource_type, func.count()).where(and_(*del_type_conds)).group_by(InventoryResource.resource_type)
+        del_type_res = await db.execute(del_type_stmt)
+        deleted_type_breakdown = [{"type": t, "count": c} for t, c in del_type_res.all()]
+        deleted_type_breakdown.sort(key=lambda x: x["count"], reverse=True)
+        
+        # 4.6 Deleted Region Breakdown
+        del_reg_stmt = select(InventoryResource.region, func.count()).where(and_(*del_type_conds)).group_by(InventoryResource.region)
+        del_reg_res = await db.execute(del_reg_stmt)
+        deleted_region_breakdown = [{"region": r, "count": c} for r, c in del_reg_res.all() if r]
+        
         # 5. Type Breakdown
         type_stmt = select(InventoryResource.resource_type, func.count()).where(and_(*conditions)).group_by(InventoryResource.resource_type)
         type_res = await db.execute(type_stmt)
@@ -74,7 +92,9 @@ class InventoryQueryService:
             "tagged": tagged,
             "untagged": untagged,
             "type_breakdown": type_breakdown,
+            "deleted_type_breakdown": deleted_type_breakdown,
             "region_breakdown": region_breakdown,
+            "deleted_region_breakdown": deleted_region_breakdown,
             "linked_breakdown": linked_breakdown,
             "group_breakdown": type_breakdown
         }

@@ -26,8 +26,19 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   const [searchQuery, setSearchQuery] = useState('');
   const [modalState, setModalState] = useState({ isOpen: false, mode: null, resource: null });
   const [detailResource, setDetailResource] = useState(null);
-  const [isGroupView, setIsGroupView] = useState(false);
+  const [isGroupView, setIsGroupView] = useState(() => {
+    const saved = localStorage.getItem('pulse_control_group_view');
+    return saved === 'true';
+  });
   const [expandedRowIds, setExpandedRowIds] = useState(new Set());
+
+  const toggleGroupView = () => {
+    setIsGroupView(prev => {
+      const next = !prev;
+      localStorage.setItem('pulse_control_group_view', next);
+      return next;
+    });
+  };
 
   const toggleRow = (id) => {
     setExpandedRowIds(prev => {
@@ -299,7 +310,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setIsGroupView(!isGroupView)}
+            onClick={toggleGroupView}
             title={isGroupView ? "Switch to Flat View" : "Switch to Group View"}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${isGroupView ? 'bg-blue-600/10 text-blue-400 border-blue-600/20' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
           >

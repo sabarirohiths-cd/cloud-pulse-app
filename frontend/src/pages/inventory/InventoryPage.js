@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAdvancedSummary, getTrend, triggerSync, wipeDatabase, getFilterOptions } from '../../api/inventory';
+import { getAdvancedSummary, getTrend, wipeDatabase, getFilterOptions } from '../../api/inventory';
+import { useInventorySync } from '../../utils/syncManager';
 import { apiClient } from '../../api/api';
 import { OverviewTab as Overview } from './tabs/OverviewTab';
 import { ChangesTab as Changes } from './tabs/ChangesTab';
@@ -30,8 +31,8 @@ export default function InventoryPage() {
   const [filterOptions, setFilterOptions] = useState({ availableRegions: [], availableLinked: [], availableTags: [] });
   const [trend, setTrend] = useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+  const { syncing, startInventorySync } = useInventorySync(selectedAccount);
 
   // Fetch Filter Options once per account
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function InventoryPage() {
     const activeConfig = accounts.find(a => a.account_name === selectedAccount);
     if (!activeConfig) return;
 
-    setLoading(true);
+    setLoadingSummary(true);
     try {
       const summaryRes = await getAdvancedSummary(
         selectedAccount,
@@ -67,14 +68,14 @@ export default function InventoryPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      setLoadingSummary(false);
     }
   }, [selectedAccount, accounts, topFilters.region, topFilters.linked, topFilters.tag]);
 
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(() => localStorage.getItem('pulse_inventory_active_tab') || 'overview');
   const [resourceFilter, setResourceFilter] = useState({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
   const [deletedFilter, setDeletedFilter] = useState({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
   const filter = tab === 'deleted' ? deletedFilter : resourceFilter;
@@ -83,13 +84,13 @@ export default function InventoryPage() {
   const [pieGroupFilter, setPieGroupFilter] = useState(null);
 
   useEffect(() => {
-    if (selectedAccount && !loading) {
+    if (selectedAccount && !loadingSummary) {
       const activeConfig = accounts.find(a => a.account_name === selectedAccount);
       if (activeConfig) {
         getTrend(activeConfig.provider, null, 30, selectedAccount, crossFilterType).then(t => setTrend(t.data?.trend || []));
       }
     }
-  }, [crossFilterType, selectedAccount, accounts, loading]);
+  }, [crossFilterType, selectedAccount, accounts, loadingSummary]);
 
   useEffect(() => {
     apiClient.get('/cloud-config/').then(res => {
@@ -106,7 +107,7 @@ export default function InventoryPage() {
           setTopFilters(prev => ({ ...prev, provider: (accs[0].provider || '').toUpperCase() }));
         }
       } else {
-        setLoading(false);
+        setLoadingSummary(false);
       }
     });
   }, []);
@@ -114,6 +115,8 @@ export default function InventoryPage() {
   useEffect(() => {
     if (selectedAccount) {
       localStorage.setItem('pulse_inventory_account', selectedAccount);
+      setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
+      setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'All' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccount]);
@@ -128,23 +131,14 @@ export default function InventoryPage() {
       .catch(e => console.error("Failed to fetch trend", e));
   }, [selectedAccount, topFilters.range, accounts]);
 
-  const sync = async () => {
+  const sync = () => {
     const activeConfig = accounts.find(a => a.account_name === selectedAccount);
     if (!activeConfig) return;
 
-    setSyncing(true);
-    try {
-      const r = await triggerSync(activeConfig.provider, activeConfig.id);
-
-      if (r.data.message) {
-        toast.warning(r.data.message, { duration: 5000 });
-      }
-
-      toast.success(`Synced ${r.data.metrics.total_active} resources • ${r.data.metrics.created} new • ${r.data.metrics.deleted} deleted`);
+    startInventorySync(activeConfig.provider, activeConfig.id, () => {
       loadSummary();
       getTrend(activeConfig.provider, null, topFilters.range, selectedAccount).then(t => setTrend(t.data?.trend || []));
-    } catch (e) { toast.error(e.response?.data?.detail || 'Sync failed'); }
-    finally { setSyncing(false); }
+    });
   };
 
   const handleWipe = async () => {
@@ -262,6 +256,22 @@ export default function InventoryPage() {
   const dynamicTypes = (serverSummary?.type_breakdown || [])
     .filter(t => filter.group === 'All' || strategy.getResourceGroup(t.type, '') === filter.group)
     .sort((a, b) => b.count - a.count);
+    
+  // Compute deleted dynamic groups and types for the Deleted Tab
+  const deletedGroupCounts = {};
+  (serverSummary?.deleted_type_breakdown || []).forEach(t => {
+    const g = strategy.getResourceGroup(t.type, '');
+    deletedGroupCounts[g] = (deletedGroupCounts[g] || 0) + t.count;
+  });
+  const deletedDynamicGroups = Object.keys(deletedGroupCounts)
+    .map(k => ({ group: k, count: deletedGroupCounts[k] }))
+    .sort((a, b) => b.count - a.count);
+    
+  const deletedDynamicTypes = (serverSummary?.deleted_type_breakdown || [])
+    .filter(t => deletedFilter.group === 'All' || strategy.getResourceGroup(t.type, '') === deletedFilter.group)
+    .sort((a, b) => b.count - a.count);
+
+  const deletedDynamicRegions = (serverSummary?.deleted_region_breakdown || []);
   const dynamicRegions = (serverSummary?.region_breakdown || []);
 
   return (
@@ -276,7 +286,7 @@ export default function InventoryPage() {
           <div>
             <h1 className="text-xl font-semibold flex items-center gap-3 text-[#e4e4e7] tracking-tight">
               {topFilters.provider || 'Cloud'} - Inventory Insights ({selectedAccount || 'None'})
-              {loading && accounts.length > 0 && (
+              {loadingSummary && accounts.length > 0 && (
                 <>
                   <span className="opacity-0" style={{ animation: 'fadeIn 0.3s ease-in-out 0.15s forwards' }}>
                     <RefreshCw className="h-4 w-4 text-zinc-500 animate-spin" />
@@ -318,6 +328,7 @@ export default function InventoryPage() {
             key={t}
             onClick={() => {
               setTab(t);
+              localStorage.setItem('pulse_inventory_active_tab', t);
               if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
               if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
             }}
@@ -337,9 +348,11 @@ export default function InventoryPage() {
           onKpiClick={(type) => {
             if (type === 'new') {
               setTab('resources');
+              localStorage.setItem('pulse_inventory_active_tab', 'resources');
               setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
             } else if (type === 'deleted') {
               setTab('deleted');
+              localStorage.setItem('pulse_inventory_active_tab', 'deleted');
               setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
             }
           }}
@@ -357,7 +370,7 @@ export default function InventoryPage() {
       )}
       {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
       {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
-      {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
+      {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={deletedDynamicGroups} dynamicTypes={deletedDynamicTypes} dynamicRegions={deletedDynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} />}
 
       {tab !== 'overview' && <ScrollToTopButton />}
 

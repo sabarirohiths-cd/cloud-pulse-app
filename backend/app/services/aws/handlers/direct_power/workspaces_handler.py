@@ -39,36 +39,27 @@ class WorkSpacesHandler(BaseDirectPowerHandler):
         client = session.client('workspaces')
         client.stop_workspaces(StopWorkspaceRequests=[{'WorkspaceId': native_id}])
 
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         resources = []
-        try:
-            session = session_manager.create_async_session(credentials, region)
-            async with session.client('workspaces', region_name=region) as client:
-                paginator = client.get_paginator('describe_workspaces')
-                async for page in paginator.paginate():
-                    for ws in page.get('Workspaces', []):
-                        ws_name = ws.get('UserName', ws['WorkspaceId'])
-                        props = ws.get('WorkspaceProperties', {})
-                        compute_type = props.get('ComputeTypeName', 'unknown')
+        client = session.client('workspaces', region_name=region)
+        paginator = client.get_paginator('describe_workspaces')
+        for page in paginator.paginate():
+            for ws in page.get('Workspaces', []):
+                ws_name = ws.get('UserName', ws['WorkspaceId'])
+                props = ws.get('WorkspaceProperties', {})
+                compute_type = props.get('ComputeTypeName', 'unknown')
 
-                        resources.append({
-                            'resource_id': ws['WorkspaceId'],
-                            'resource_name': f"WorkSpace-{ws_name}",
-                            'cloud_provider': 'aws',
-                            'region': region,
-                            'service_type': ServiceType.WORKSPACES.value,
-                            'control_type': ControlType.DIRECT_POWER.value,
-                            'status': normalize_workspaces_status(ws.get('State', 'unknown')),
-                            'instance_spec': compute_type,
-                            'tags': {},
-                            'last_synced_at': datetime.now(timezone.utc)
-                        })
-
-        except ClientError as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("WorkSpacesHandler", parse_aws_client_error(e))
-        except Exception as e:
-            from app.services.base_handler import parse_aws_client_error
-            self.log_once("WorkSpacesHandler", parse_aws_client_error(e))
+                resources.append({
+                    'resource_id': ws['WorkspaceId'],
+                    'resource_name': f"WorkSpace-{ws_name}",
+                    'cloud_provider': 'aws',
+                    'region': region,
+                    'service_type': ServiceType.WORKSPACES.value,
+                    'control_type': ControlType.DIRECT_POWER.value,
+                    'status': normalize_workspaces_status(ws.get('State', 'unknown')),
+                    'instance_spec': compute_type,
+                    'tags': {},
+                    'last_synced_at': datetime.now(timezone.utc)
+                })
 
         return resources
