@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, Server } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
+import { formatDynamicLocalTime } from '../../../utils/dateFormatter';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
@@ -135,25 +136,19 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
             )}
             itemContent={(index, r) => (
               <>
-                <td className="px-4 py-3 truncate">
-                  <div className="text-sm font-semibold text-white truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
-                  <div className="text-[10px] text-zinc-500 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs px-2 py-1 bg-zinc-800/50 text-zinc-300 rounded border border-zinc-700/50">{formatType(r.resource_type, r.provider)}</span>
-                </td>
-                <td className="px-4 py-3 text-xs text-zinc-400">{r.region}</td>
+                  <td className="px-4 py-3 truncate">
+                    <div className="text-[13px] font-semibold text-zinc-200 truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
+                  </td>
+                  <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium uppercase">
+                    {formatType(r.resource_type, r.provider)}
+                  </td>
+                  <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium">{r.region}</td>
                 <td className="px-4 py-3">
                   <span className="text-xs text-red-400">
-                    {(() => {
-                      if (!r.deleted_at) return '';
-                      let dString = r.deleted_at;
-                      if (!dString.includes('T')) dString = dString.replace(' ', 'T');
-                      if (!dString.includes('+') && !dString.includes('Z')) dString += '+05:30';
-                      const d = new Date(dString);
-                      if (isNaN(d.getTime())) return r.deleted_at.substring(0, 16);
-                      return `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} ${d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}`;
-                    })()}
+                    <span className="text-zinc-400">
+                      {formatDynamicLocalTime(r.deleted_at)}
+                    </span>
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { History } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { formatType, formatIdentifier } from '../../../utils/ui-utils';
+import { formatDynamicLocalTime } from '../../../utils/dateFormatter';
 import { EmptyState } from '../../../components/ui/EmptyState';
 
 import { FilterBar } from '../../../components/ui/FilterBar';
@@ -142,11 +143,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
                       {c.change_type === 'created' ? '+ New' : c.change_type === 'deleted' ? '− Deleted' : '~ Updated'}
                     </span>
                     <div className="text-[9px] text-zinc-600 mt-1">
-                      {(() => {
-                        const d = new Date(c.detected_at + (c.detected_at.includes('Z') ? '' : 'Z'));
-                        if (isNaN(d.getTime())) return c.detected_at;
-                        return `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} ${d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}`;
-                      })()}
+                      {formatDynamicLocalTime(c.detected_at)}
                     </div>
                   </div>
                 </div>

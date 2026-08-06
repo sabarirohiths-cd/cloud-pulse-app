@@ -9,6 +9,7 @@ class ServiceType(str, enum.Enum):
     AURORA = "AURORA"
     DOCUMENTDB = "DOCUMENTDB"
     REDSHIFT = "REDSHIFT"
+    
     SAGEMAKER = "SAGEMAKER"
     WORKSPACES = "WORKSPACES"
     ASG = "ASG"
@@ -45,6 +46,7 @@ class ControlResource(Base):
     # Advanced metadata
     tags_json = Column(Text, nullable=True)
     parent_resource_id = Column(String, nullable=True)
+    is_visible = Column(Boolean, default=True)
     
     # Scheduling fields
     is_automation_enabled = Column(Boolean, default=False)

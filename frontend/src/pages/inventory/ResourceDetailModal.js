@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Server, X, Globe, Tag as TagIcon, History } from 'lucide-react';
+import { formatDynamicLocalTime } from '../../utils/dateFormatter';
 import { formatType, formatIdentifier, formatName } from '../../utils/ui-utils';
 import { EmptyState } from '../../components/ui/EmptyState';
 
@@ -94,30 +95,14 @@ export function ResourceDetailModal({ selectedResource, setSelectedResource }) {
                 </div>
                 <div className="bg-[#161b22] p-3.5 rounded-xl border border-[#30363d]">
                   <p className="text-xs text-zinc-500 font-medium mb-1 block">First Seen</p>
-                  <p className="text-sm font-medium text-zinc-200">
-                    {(() => {
-                      if (!selectedResource.first_seen_date) return 'Unknown';
-                      let dString = selectedResource.first_seen_date;
-                      if (!dString.includes('T')) dString = dString.replace(' ', 'T');
-                      if (!dString.includes('+') && !dString.includes('Z')) dString += '+05:30';
-                      const d = new Date(dString);
-                      if (isNaN(d.getTime())) return selectedResource.first_seen_date;
-                      return `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} ${d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}`;
-                    })()}
+                  <p className="text-sm font-medium text-white">
+                    {formatDynamicLocalTime(selectedResource.first_seen_date)}
                   </p>
                 </div>
                 <div className="bg-[#161b22] p-3.5 rounded-xl border border-[#30363d]">
                   <p className="text-xs text-zinc-500 font-medium mb-1 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Deleted At</p>
-                  <p className="text-sm font-medium text-zinc-200">
-                    {(() => {
-                      if (!selectedResource.deleted_at) return 'N/A';
-                      let dString = selectedResource.deleted_at;
-                      if (!dString.includes('T')) dString = dString.replace(' ', 'T');
-                      if (!dString.includes('+') && !dString.includes('Z')) dString += '+05:30';
-                      const d = new Date(dString);
-                      if (isNaN(d.getTime())) return selectedResource.deleted_at;
-                      return `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} ${d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}`;
-                    })()}
+                  <p className="text-sm font-medium text-red-400">
+                    {formatDynamicLocalTime(selectedResource.deleted_at)}
                   </p>
                 </div>
               </div>

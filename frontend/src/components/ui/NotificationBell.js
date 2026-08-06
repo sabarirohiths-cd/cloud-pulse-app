@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Info, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../api/api';
+import { formatDynamicLocalTime } from '../../utils/dateFormatter';
 
 export function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -63,8 +64,7 @@ export function NotificationBell() {
   };
 
   const formatTime = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + date.toLocaleDateString();
+    return formatDynamicLocalTime(dateStr);
   };
 
   return (

@@ -262,23 +262,38 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   const uniqueGroups = Array.from(new Set(resources.map(r => getGroup(r.service_type))));
 
-  const filteredResources = resources
-    .filter(r => {
-      // In flat view, hide parent clusters (EKS/ECS base clusters)
-      if (!isGroupView) {
-        const isParentCluster = !r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase());
-        if (isParentCluster) return false;
+  const matchesFilter = (r) => {
+    const groupMatch = filter.group === 'All' || getGroup(r.service_type) === filter.group;
+    const typeMatch = filter.type === 'All' || (r.service_type || '').toUpperCase() === filter.type;
+    const stateMatch = filter.powerState === 'All' || r.status === filter.powerState;
+    const searchMatch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.resource_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+    return groupMatch && typeMatch && stateMatch && searchMatch;
+  };
+
+  const directlyMatchedIds = new Set(resources.filter(matchesFilter).map(r => r.resource_id));
+  const familyMatchedIds = new Set(directlyMatchedIds);
+
+  if (isGroupView) {
+    resources.forEach(r => {
+      if (directlyMatchedIds.has(r.resource_id) && r.parent_resource_id) {
+        familyMatchedIds.add(r.parent_resource_id); // Include parent if child matches
       }
-      return true;
-    })
-    .filter(r => filter.group === 'All' || getGroup(r.service_type) === filter.group)
-    .filter(r => filter.type === 'All' || (r.service_type || '').toUpperCase() === filter.type)
-    .filter(r => filter.powerState === 'All' || r.status === filter.powerState)
-    .filter(r =>
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.resource_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.account_name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+      if (r.parent_resource_id && directlyMatchedIds.has(r.parent_resource_id)) {
+        familyMatchedIds.add(r.resource_id); // Include child if parent matches
+      }
+    });
+  }
+
+  const filteredResources = resources.filter(r => {
+    if (!isGroupView) {
+      const isParentCluster = !r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase());
+      if (isParentCluster) return false;
+      return directlyMatchedIds.has(r.resource_id);
+    }
+    return familyMatchedIds.has(r.resource_id);
+  });
 
   const treeData = React.useMemo(() => buildResourceTree(filteredResources, isGroupView, expandedRowIds), [filteredResources, isGroupView, expandedRowIds]);
 

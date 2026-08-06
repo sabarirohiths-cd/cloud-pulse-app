@@ -140,13 +140,13 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
             itemContent={(index, r) => (
               <>
                 <td className="px-4 py-3 truncate">
-                  <div className="text-sm font-semibold text-white truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
-                  <div className="text-[10px] text-zinc-500 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
+                  <div className="text-[13px] font-semibold text-zinc-200 truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
+                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
                 </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs px-2 py-1 bg-zinc-800/50 text-zinc-300 rounded border border-zinc-700/50">{formatType(r.resource_type, r.provider)}</span>
+                <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium uppercase">
+                  {formatType(r.resource_type, r.provider)}
                 </td>
-                <td className="px-4 py-3 text-xs text-zinc-400">{r.region}</td>
+                <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium">{r.region}</td>
                 <td className="px-4 py-3">
                   <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${r.billable ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-700/50 text-zinc-500'}`}>{r.billable ? 'Yes' : 'No'}</span>
                 </td>

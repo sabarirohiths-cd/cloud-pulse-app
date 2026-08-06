@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { History, Play, Square, CalendarClock } from 'lucide-react';
+import { formatDynamicLocalTime } from '../../../utils/dateFormatter';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { TableVirtuoso } from 'react-virtuoso';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
@@ -69,11 +70,7 @@ export function ActivityLogTab({ topFilters }) {
   };
 
   const formatDate = (isoString) => {
-    const d = new Date(isoString);
-    return d.toLocaleString(undefined, { 
-      month: 'short', day: 'numeric', 
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
+    return formatDynamicLocalTime(isoString, 'full');
   };
 
   return (

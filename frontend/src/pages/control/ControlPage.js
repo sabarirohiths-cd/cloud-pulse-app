@@ -8,6 +8,7 @@ import { FilterBar } from '../../components/ui/FilterBar';
 import { OverviewTab } from './tabs/OverviewTab';
 import { ActivityLogTab } from './tabs/ActivityLogTab';
 import { ResourcesTab } from './tabs/ResourcesTab';
+import { SettingsTab } from './tabs/SettingsTab';
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 import { NotificationBell } from '../../components/ui/NotificationBell';
 
@@ -200,7 +201,7 @@ export default function ControlPage() {
 
       {/* Main Global Tab Bar */}
       <div className="border-b border-zinc-800 flex gap-6">
-        {['overview', 'activity', 'resources'].map(t => (
+        {['overview', 'activity', 'resources', 'settings'].map(t => (
           <button
             key={t}
             onClick={() => {
@@ -230,6 +231,11 @@ export default function ControlPage() {
             topFilters={topFilters}
             onActionLogged={loadLogs}
             syncRefreshTrigger={syncRefreshTrigger}
+          />
+        )}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            topFilters={topFilters}
           />
         )}
       </div>

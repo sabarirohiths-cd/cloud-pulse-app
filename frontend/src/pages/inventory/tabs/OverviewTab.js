@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, Server, Tag as TagIcon, Plus, Minus, Globe } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import { formatDynamicLocalTime } from '../../../utils/dateFormatter';
 import { formatType } from '../../../utils/ui-utils';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { CustomDonut } from '../../../components/charts/CustomDonut';
@@ -70,14 +71,9 @@ export function OverviewTab({ summary, dynamicTypes, dynamicRegions, selectedAcc
                   minTickGap={20}
                   tickFormatter={(val) => {
                     if (!val) return '';
-                    let dString = val;
-                    if (!dString.includes('T')) dString = dString.replace(' ', 'T');
-                    if (!dString.includes('+') && !dString.includes('Z')) dString += 'Z';
-                    const d = new Date(dString);
-                    if (isNaN(d.getTime())) return val.substring(0, 10);
-                    if (topFilters.range <= 1) return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
-                    if (topFilters.range <= 7) return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', hour: '2-digit', hour12: false });
-                    return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+                    if (topFilters.range <= 1) return formatDynamicLocalTime(val, 'timeOnly');
+                    if (topFilters.range <= 7) return formatDynamicLocalTime(val, 'short');
+                    return formatDynamicLocalTime(val, 'dateOnly');
                   }} 
                 />
                 <YAxis 
@@ -90,13 +86,7 @@ export function OverviewTab({ summary, dynamicTypes, dynamicRegions, selectedAcc
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload;
-                      let dString = label || '';
-                      if (!dString.includes('T')) dString = dString.replace(' ', 'T');
-                      if (!dString.includes('+') && !dString.includes('Z')) dString += 'Z';
-                      const d = new Date(dString);
-                      const dateStr = isNaN(d.getTime()) 
-                        ? label 
-                        : `${d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} ${d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}`;
+                      const dateStr = formatDynamicLocalTime(label);
                       const deltaColor = data.delta > 0 ? '#10b981' : data.delta < 0 ? '#ef4444' : '#a1a1aa';
                       const deltaSign = data.delta > 0 ? '+' : '';
                       return (

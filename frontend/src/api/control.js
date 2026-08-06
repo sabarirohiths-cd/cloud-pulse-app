@@ -17,8 +17,9 @@ export const getControlSyncStatus = async (accountName) => {
   return response.data;
 };
 
-export const listResources = async (filters = {}, limit = 50, offset = 0) => {
+export const listResources = async (filters = {}, limit = 50, offset = 0, showHidden = false) => {
   const params = { limit, offset };
+  if (showHidden) params.show_hidden = true;
   if (filters.account && filters.account !== 'All Accounts') params.account_name = filters.account;
   if (filters.provider && filters.provider !== 'All Providers') params.provider = filters.provider;
   if (filters.region && filters.region !== 'All Regions') params.region = filters.region;
@@ -75,5 +76,13 @@ export const listAuditLogs = async (filters = {}, limit = 50, offset = 0) => {
 
 export const getDbState = async (resourceId) => {
   const response = await apiClient.get('/control/db-state/' + encodeURIComponent(resourceId));
+  return response.data;
+};
+
+export const toggleVisibility = async (resourceIds, isVisible) => {
+  const response = await apiClient.post('/control/toggle-visibility', {
+    resource_ids: resourceIds,
+    is_visible: isVisible
+  });
   return response.data;
 };

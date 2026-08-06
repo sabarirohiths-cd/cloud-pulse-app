@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Server, Database, Clock } from 'lucide-react';
+import { ChevronDown, ChevronRight, Server, Database, Clock, Eye, EyeOff } from 'lucide-react';
 
 export const ResourceTableRow = ({
   r,
@@ -7,7 +7,9 @@ export const ResourceTableRow = ({
   toggleRow,
   setDetailResource,
   getStatusStyle,
-  setModalState
+  setModalState,
+  isSettingsMode = false,
+  handleToggle = null
 }) => {
   let tags = {};
   try {
@@ -63,7 +65,9 @@ export const ResourceTableRow = ({
         )}
       </td>
       <td className="p-4 text-[13px] text-zinc-400">
-        {r.schedule?.is_automation_enabled ? (
+        {isSettingsMode ? (
+          <span className="text-zinc-500 italic text-xs">Settings Managed</span>
+        ) : r.schedule?.is_automation_enabled ? (
           <div className="flex items-center gap-1.5 text-blue-400 font-medium">
             <Clock className="h-3 w-3 shrink-0" />
             <span className="font-mono">{r.schedule.start_time} - {r.schedule.stop_time}</span>
@@ -74,7 +78,22 @@ export const ResourceTableRow = ({
       </td>
       <td className="p-4 text-right">
         <div className="flex justify-end gap-2">
-          {!(!r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase())) ? (
+          {isSettingsMode ? (
+            <button
+              onClick={() => handleToggle(r)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${
+                r.is_visible 
+                  ? 'bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 hover:bg-zinc-700' 
+                  : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-400'
+              }`}
+            >
+              {r.is_visible ? (
+                <><Eye className="h-3 w-3" /> Visible</>
+              ) : (
+                <><EyeOff className="h-3 w-3" /> Hidden</>
+              )}
+            </button>
+          ) : !(!r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase())) ? (
             <>
               <button
                 onClick={() => setModalState({ isOpen: true, mode: 'schedule', resource: r })}

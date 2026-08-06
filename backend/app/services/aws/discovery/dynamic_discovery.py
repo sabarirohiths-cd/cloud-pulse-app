@@ -94,6 +94,15 @@ async def discover_and_upsert_child_ec2(
                     db_res.status = state
                     db_res.parent_resource_id = parent_resource_id
                 else:
+                    # Inherit visibility from parent if possible
+                    is_visible = True
+                    if parent_resource_id:
+                        parent_stmt = select(ControlResource).where(ControlResource.resource_id == parent_resource_id)
+                        parent_result = await session.execute(parent_stmt)
+                        parent_res = parent_result.scalars().first()
+                        if parent_res:
+                            is_visible = parent_res.is_visible
+
                     new_res = ControlResource(
                         resource_id=inst_id,
                         resource_name=name,
@@ -105,6 +114,7 @@ async def discover_and_upsert_child_ec2(
                         status=state,
                         parent_resource_id=parent_resource_id,
                         is_automation_enabled=False,
+                        is_visible=is_visible,
                         tags_json=json.dumps(tags_json)
                     )
                     session.add(new_res)

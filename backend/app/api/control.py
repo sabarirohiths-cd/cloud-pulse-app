@@ -13,6 +13,10 @@ from app.services.control_service import control_service
 from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
 from app.monitoring.state_monitor import route_transition
 
+class VisibilityTogglePayload(BaseModel):
+    resource_ids: list[str]
+    is_visible: bool
+
 router = APIRouter(prefix="/control", tags=["Resource Control"])
 
 
@@ -76,6 +80,7 @@ async def list_controllable_resources(
     provider: Optional[str] = None,
     region: Optional[str] = None,
     tag: Optional[str] = None,
+    show_hidden: bool = False,
     limit: int = Query(50),
     offset: int = Query(0),
     db: AsyncSession = Depends(get_db)
@@ -83,6 +88,9 @@ async def list_controllable_resources(
     """Fetch controllable resources along with their current schedule metadata, with backend filtering."""
     stmt = select(ControlResource)
     
+    if not show_hidden:
+        stmt = stmt.where(ControlResource.is_visible == True)
+        
     if account_name and account_name != 'All Accounts':
         stmt = stmt.where(ControlResource.account_name == account_name)
     if provider and provider != 'AWS': # Default if empty or 'AWS' for now
@@ -96,9 +104,68 @@ async def list_controllable_resources(
     stmt = stmt.limit(limit).offset(offset)
         
     res = await db.execute(stmt)
-    schedules = res.scalars().all()
+    schedules = list(res.scalars().all())
     
+    if not schedules:
+        return []
+        
+    # Eager-load families to fix frontend Group View during pagination
+    parent_ids = {s.parent_resource_id for s in schedules if s.parent_resource_id}
+    resource_ids = {s.resource_id for s in schedules}
+    missing_parents = parent_ids - resource_ids
+    
+    all_parent_ids = resource_ids.union(missing_parents)
+    
+    if missing_parents:
+        parent_stmt = select(ControlResource).where(ControlResource.resource_id.in_(missing_parents))
+        parent_res = await db.execute(parent_stmt)
+        schedules.extend(parent_res.scalars().all())
+        
+    if all_parent_ids:
+        child_stmt = select(ControlResource).where(ControlResource.parent_resource_id.in_(all_parent_ids))
+        if not show_hidden:
+            child_stmt = child_stmt.where(ControlResource.is_visible == True)
+            
+        child_res = await db.execute(child_stmt)
+        children = child_res.scalars().all()
+        
+        existing_ids = {s.resource_id for s in schedules}
+        for child in children:
+            if child.resource_id not in existing_ids:
+                schedules.append(child)
+                existing_ids.add(child.resource_id)
+                
     return schedules
+
+@router.post("/toggle-visibility")
+async def toggle_visibility(payload: VisibilityTogglePayload, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import update, select
+    
+    # Base case: update the explicitly provided IDs
+    all_ids_to_update = set(payload.resource_ids)
+    
+    # Recursively find all children to cascade the visibility toggle
+    current_parent_ids = list(payload.resource_ids)
+    while current_parent_ids:
+        # Find children of the current parents
+        child_stmt = select(ControlResource.resource_id).where(ControlResource.parent_resource_id.in_(current_parent_ids))
+        child_res = await db.execute(child_stmt)
+        child_ids = child_res.scalars().all()
+        
+        if not child_ids:
+            break
+            
+        all_ids_to_update.update(child_ids)
+        current_parent_ids = child_ids
+
+    stmt = (
+        update(ControlResource)
+        .where(ControlResource.resource_id.in_(all_ids_to_update))
+        .values(is_visible=payload.is_visible)
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return {"message": f"Updated visibility for {len(all_ids_to_update)} resources (including cascaded children)"}
 
 @router.get("/filter-options")
 async def get_filter_options(account_name: Optional[str] = None, provider: Optional[str] = None, db: AsyncSession = Depends(get_db)):
