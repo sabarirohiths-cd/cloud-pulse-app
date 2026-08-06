@@ -14,6 +14,9 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
   const [hasMore, setHasMore] = React.useState(true);
   const [offset, setOffset] = React.useState(0);
   
+  // Use global dynamic counts to avoid filter deadlock
+  // We no longer use local restrictive breakdowns
+  
   const strategy = getStrategy(provider);
 
   const LIMIT = 50;
@@ -59,6 +62,10 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
       );
 
       const newResources = res.data.resources;
+      
+      if (reset) {
+        // Removed local state updates to prevent cascading filter lock
+      }
       
       setResources(prev => reset ? newResources : [...prev, ...newResources]);
       setOffset(currentOffset + LIMIT);

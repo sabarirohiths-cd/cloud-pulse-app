@@ -205,6 +205,23 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
             for cluster_page in cluster_paginator.paginate():
                 for cluster_arn in cluster_page.get('clusterArns', []):
                     cluster_name = cluster_arn.split('/')[-1]
+                    
+                    # Emit the standard ECS cluster as a parent resource so children can group under it
+                    resources.append({
+                        'resource_id': cluster_name,
+                        'resource_name': cluster_name,
+                        'cloud_provider': 'aws',
+                        'region': region,
+                        'service_type': ServiceType.ECS.value,
+                        'control_type': ControlType.SCALE_TO_ZERO.value,
+                        'status': 'ACTIVE',
+                        'instance_spec': 'ECS Cluster',
+                        'tags': {},
+                        'parent_resource_id': None,
+                        'last_synced_at': datetime.now(timezone.utc),
+                        'compute_mode': 'STANDARD',
+                        'scale_to_zero_eligible': False
+                    })
                             
                     service_paginator = ecs.get_paginator('list_services')
                     for service_page in service_paginator.paginate(cluster=cluster_arn):

@@ -56,11 +56,24 @@ async def discover_and_upsert_child_ec2(
         # 1. Get ASG Instances
         asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
         groups = asg_res.get('AutoScalingGroups', [])
-        if not groups:
-            return
+        
+        instance_ids = []
+        if groups:
+            instance_ids = [inst['InstanceId'] for inst in groups[0].get('Instances', [])]
             
-        instance_ids = [inst['InstanceId'] for inst in groups[0].get('Instances', [])]
+        # 1.5 Garbage collect stale child EC2 instances
+        stmt = select(ControlResource).where(
+            ControlResource.parent_resource_id == parent_resource_id,
+            ControlResource.service_type == ServiceType.EC2
+        )
+        existing_children = (await session.execute(stmt)).scalars().all()
+        for child in existing_children:
+            if child.resource_id not in instance_ids:
+                await session.delete(child)
+                logger.info(f"[Discovery] Garbage collected stale child EC2: {child.resource_id}")
+                
         if not instance_ids:
+            await session.commit()
             return
             
         # 2. Get EC2 details

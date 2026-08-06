@@ -160,8 +160,26 @@ class ASGHandler(BaseScaleToZeroHandler):
                     # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
                     parent_id = find_parent_instance_from_asg(asg_name, session)
 
+                is_eks_managed = 'eks:nodegroup-name' in tags_dict
+                
                 spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
-                if asg_name in eks_asg_map:
+                if is_eks_managed:
+                    cluster_name = None
+                    for k in tags_dict.keys():
+                        if k.startswith('kubernetes.io/cluster/'):
+                            cluster_name = k.replace('kubernetes.io/cluster/', '')
+                            break
+                    if not cluster_name:
+                        cluster_name = tags_dict.get('aws:eks:cluster-name') or tags_dict.get('eks:cluster-name')
+                    
+                    nodegroup_name = tags_dict.get('eks:nodegroup-name')
+                    if cluster_name and nodegroup_name:
+                        parent_id = f"{cluster_name}/{nodegroup_name}"
+                    else:
+                        parent_id = cluster_name
+                        
+                    spec = f"EKS (Managed) | {spec}"
+                elif asg_name in eks_asg_map:
                     parent_id = eks_asg_map[asg_name]
                     spec = f"EKS (Unmanaged) | {spec}"
                 elif asg_name in cp_asgs:

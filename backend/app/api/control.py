@@ -41,6 +41,15 @@ async def get_summary(
         func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
     )
     
+    # Exclude parent clusters from the count since they are non-actionable containers
+    from sqlalchemy import and_, or_
+    stmt = stmt.where(
+        ~and_(
+            ControlResource.service_type.in_(['EKS', 'ECS']),
+            ControlResource.parent_resource_id.is_(None)
+        )
+    )
+    
     if account_name and account_name != 'All Accounts':
         stmt = stmt.where(ControlResource.account_name == account_name)
     if provider and provider != 'AWS':
@@ -173,9 +182,17 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
         sched = sched_res.scalars().first()
         
         # Block manual actions on resources managed by a parent (e.g., EC2 managed by ASG, ASG managed by ECS Cluster)
-        # Exception: ECS Services belong to a Cluster (parent), but the Service itself IS the unit of control.
-        if sched and sched.parent_resource_id and sched.service_type != 'ECS':
-            raise HTTPException(status_code=400, detail=f"Resource is natively managed by {sched.parent_resource_id}. Please control the parent instead.")
+        # Exceptions:
+        # 1. ECS Services belong to a Cluster (parent), but the Service itself IS the unit of control.
+        # 2. EKS Node Groups belong to an EKS Cluster, but the Node Group IS the unit of control.
+        # 3. ASGs that are direct children of an EKS cluster (Unmanaged EKS ASGs).
+        if sched and sched.parent_resource_id:
+            is_ecs_service = (sched.service_type == 'ECS')
+            is_eks_nodegroup = (sched.service_type == 'EKS' and sched.resource_id != sched.parent_resource_id)
+            is_unmanaged_eks_asg = (sched.service_type == 'ASG' and not '/' in sched.parent_resource_id)
+            
+            if not (is_ecs_service or is_eks_nodegroup or is_unmanaged_eks_asg):
+                raise HTTPException(status_code=400, detail=f"Resource is natively managed by {sched.parent_resource_id}. Please control the parent instead.")
 
         saved_config = sched.saved_config_json if sched else None
 
@@ -273,7 +290,11 @@ async def list_audit_logs(
     offset: int = Query(0), 
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(ControlActionLog)
+    from sqlalchemy import and_
+    stmt = select(ControlActionLog, ControlResource.service_type).outerjoin(
+        ControlResource,
+        and_(ControlActionLog.native_id == ControlResource.resource_id, ControlActionLog.account_name == ControlResource.account_name)
+    )
     
     if account_name and account_name != 'All Accounts':
         stmt = stmt.where(ControlActionLog.account_name == account_name)
@@ -294,7 +315,14 @@ async def list_audit_logs(
         
     stmt = stmt.order_by(ControlActionLog.timestamp.desc()).limit(limit).offset(offset)
     res = await db.execute(stmt)
-    logs = res.scalars().all()
+    rows = res.all()
+    
+    logs = []
+    for row in rows:
+        log = row[0].__dict__.copy()
+        log.pop('_sa_instance_state', None)
+        log['service_type'] = row[1] if row[1] else "Unknown"
+        logs.append(log)
     return logs
 
 @router.post("/log-action")
@@ -401,12 +429,13 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                                 )
                                 await db.commit()
                 
-                    # Fetch existing PARENT resources from DB to track stale ones
-                    # We ignore child resources here because the global scanner does not fetch them
+                    # Fetch existing PARENT/Managed resources from DB to track stale ones
+                    from sqlalchemy import or_
+                    from app.models.control.control_resource import ServiceType
+                    
                     stmt = select(ControlResource).where(
                         ControlResource.account_name == config["account_name"],
-                        ControlResource.cloud_provider == config["provider"],
-                        ControlResource.parent_resource_id == None
+                        ControlResource.cloud_provider == config["provider"]
                     )
                     existing_schedules = (await db.execute(stmt)).scalars().all()
                     existing_ids = {s.resource_id for s in existing_schedules}
@@ -458,20 +487,36 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                             sched.service_type = r['service_type']
                             sched.control_type = r['control_type']
                             sched.resource_name = r.get('resource_name', r['resource_id'])
-                            sched.status = r.get('status', 'UNKNOWN')
-                            sched.instance_spec = r.get('instance_spec', 'unknown')
                             sched.cloud_provider = config["provider"]
                             sched.account_name = config["account_name"]
+                            sched.status = r['status']
+                            sched.instance_spec = r['instance_spec']
+                            sched.tags_json = json.dumps(r.get('tags', {}))
+                            
+                            # Scale-to-Zero Protection: If an ASG scales to 0, it may lose the EC2 instance tags
+                            # needed to map it to its parent EKS/ECS cluster. If the new sync returns None for parent,
+                            # but we already had a parent mapped, preserve the existing parent relationship.
+                            if r.get('parent_resource_id') is None and sched.parent_resource_id and sched.service_type == 'ASG':
+                                pass
+                            else:
+                                sched.parent_resource_id = r.get('parent_resource_id')
+                            
                             sched.linked_account = r.get('linked_account')
                             sched.region = r.get('region', config["default_region"])
-                            sched.tags_json = json.dumps(r.get('tags', {}))
-                            sched.parent_resource_id = r.get('parent_resource_id')
                         
                     # Delete stale resources that no longer exist in AWS
                     stale_ids = existing_ids - fetched_ids
                     for stale_id in stale_ids:
                         sched_to_delete = await db.get(ControlResource, stale_id)
                         if sched_to_delete:
+                            # 1. Cascade delete orphaned children (e.g. EC2 instances)
+                            children_stmt = select(ControlResource).where(ControlResource.parent_resource_id == stale_id)
+                            children = (await db.execute(children_stmt)).scalars().all()
+                            for child in children:
+                                await db.delete(child)
+                                print(f"[Backend Sync] Deleted orphaned child resource: {child.resource_id}")
+                                
+                            # 2. Delete the parent
                             await db.delete(sched_to_delete)
                             print(f"[Backend Sync] Deleted stale resource: {stale_id}")
                         
@@ -631,3 +676,7 @@ async def get_db_state(resource_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Resource not found")
     return {"status": sched.status}
 
+
+    from sqlalchemy import text
+    await db.commit()
+    return {'status': 'success'}

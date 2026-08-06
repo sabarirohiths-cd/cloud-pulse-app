@@ -68,36 +68,13 @@ def discover_eks_asgs_and_karpenter(session, cluster_name: str) -> Tuple[List[st
 def map_all_eks_unmanaged_asgs(session, region: str) -> Dict[str, str]:
     """
     Returns a mapping of ASG Name -> EKS Cluster Name for all unmanaged EKS ASGs in the region.
-    Inspects both active EC2 instances and directly polls Auto Scaling Groups to catch 0-node scale states.
+    Inspects ASGs directly, and uses single-instance EC2 sampling for ASGs that only have tags on instances.
     """
     ec2 = session.client('ec2', region_name=region)
     autoscaling = session.client('autoscaling', region_name=region)
     asg_to_cluster = {}
     
     try:
-        # 1. Map via active EC2 instances
-        paginator = ec2.get_paginator('describe_instances')
-        for page in paginator.paginate(Filters=[
-            {'Name': 'tag-key', 'Values': ['kubernetes.io/cluster/*']}
-        ]):
-            for resrv in page.get('Reservations', []):
-                for inst in resrv.get('Instances', []):
-                    tags = {t.get('Key'): t.get('Value') for t in inst.get('Tags', [])}
-                    
-                    cluster_name = None
-                    for k in tags.keys():
-                        if k.startswith('kubernetes.io/cluster/'):
-                            cluster_name = k.replace('kubernetes.io/cluster/', '')
-                            break
-                            
-                    asg_name = tags.get('aws:autoscaling:groupName')
-                    is_managed = 'eks:nodegroup-name' in tags
-                    
-                    if asg_name and cluster_name and not is_managed:
-                        if asg_name not in asg_to_cluster:
-                            asg_to_cluster[asg_name] = cluster_name
-                            
-        # 2. Map via direct ASG inspection (Catches Scaled-to-Zero ASGs)
         asg_paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
         from app.services.aws.discovery.asg_discovery import get_eks_cluster_from_asg_dict
         
@@ -106,24 +83,53 @@ def map_all_eks_unmanaged_asgs(session, region: str) -> Dict[str, str]:
                 tags = {t['Key']: t['Value'] for t in asg.get('Tags', [])}
                 is_managed = 'eks:nodegroup-name' in tags
                 
-                if not is_managed:
-                    cluster_name = None
-                    for k in tags.keys():
-                        if k.startswith('kubernetes.io/cluster/'):
-                            cluster_name = k.replace('kubernetes.io/cluster/', '')
-                            break
-                            
-                    asg_name = asg['AutoScalingGroupName']
+                if is_managed:
+                    continue
                     
-                    if cluster_name:
-                        if asg_name not in asg_to_cluster:
-                            asg_to_cluster[asg_name] = cluster_name
-                    elif asg['DesiredCapacity'] == 0:
-                        # Deep inspection for untagged scaled-to-zero ASGs
-                        deep_cluster = get_eks_cluster_from_asg_dict(asg, ec2)
-                        if deep_cluster:
-                            if asg_name not in asg_to_cluster:
-                                asg_to_cluster[asg_name] = deep_cluster
+                asg_name = asg['AutoScalingGroupName']
+                cluster_name = None
+                
+                # 1. Check ASG tags directly
+                for k in tags.keys():
+                    if k.startswith('kubernetes.io/cluster/'):
+                        cluster_name = k.replace('kubernetes.io/cluster/', '')
+                        break
+                        
+                if not cluster_name:
+                    cluster_name = tags.get('aws:eks:cluster-name') or tags.get('eks:cluster-name')
+                        
+                if cluster_name:
+                    asg_to_cluster[asg_name] = cluster_name
+                    continue
+                    
+                # 2. If no ASG tags, check active EC2 instances (Sample the first instance)
+                instances = asg.get('Instances', [])
+                active_instances = [i['InstanceId'] for i in instances if i.get('LifecycleState') in ['InService', 'Pending']]
+                
+                if active_instances:
+                    try:
+                        inst_res = ec2.describe_instances(InstanceIds=[active_instances[0]])
+                        for r in inst_res.get('Reservations', []):
+                            for i in r.get('Instances', []):
+                                i_tags = {t.get('Key'): t.get('Value') for t in i.get('Tags', [])}
+                                for k in i_tags.keys():
+                                    if k.startswith('kubernetes.io/cluster/'):
+                                        cluster_name = k.replace('kubernetes.io/cluster/', '')
+                                        break
+                                if not cluster_name:
+                                    cluster_name = i_tags.get('aws:eks:cluster-name') or i_tags.get('eks:cluster-name')
+                    except Exception as e:
+                        logger.debug(f"[EKS Map] Failed to describe instance {active_instances[0]} for ASG {asg_name}: {e}")
+                        
+                if cluster_name:
+                    asg_to_cluster[asg_name] = cluster_name
+                    continue
+                    
+                # 3. If no active instances (scaled to 0), do deep launch template inspection
+                if asg['DesiredCapacity'] == 0:
+                    deep_cluster = get_eks_cluster_from_asg_dict(asg, ec2)
+                    if deep_cluster:
+                        asg_to_cluster[asg_name] = deep_cluster
                         
     except Exception as e:
         logger.warning(f"Error mapping EKS ASGs in region {region}: {e}")

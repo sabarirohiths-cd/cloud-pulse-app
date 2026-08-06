@@ -121,11 +121,12 @@ export function ActivityLogTab({ topFilters }) {
             }}
             fixedHeaderContent={() => (
               <tr className="bg-[#0a0a0f]">
-                <th className="p-4 w-[20%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Timestamp</th>
-                <th className="p-4 w-[20%] bg-[#111114] border-b border-[#1f1f24]">Event Type</th>
+                <th className="p-4 w-[15%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Timestamp</th>
+                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Event Type</th>
+                <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Service</th>
                 <th className="p-4 w-[25%] bg-[#111114] border-b border-[#1f1f24]">Resource</th>
-                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
-                <th className="p-4 w-[20%] bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Details</th>
+                <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
+                <th className="p-4 w-[25%] bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Details</th>
               </tr>
             )}
             itemContent={(index, log) => (
@@ -138,6 +139,9 @@ export function ActivityLogTab({ topFilters }) {
                     {getActionIcon(log.action_type)}
                     <span className="text-zinc-200">{log.action_type.replace(/_/g, ' ')}</span>
                   </div>
+                </td>
+                <td className="p-4 text-[12px] font-bold text-zinc-400 uppercase">
+                  {log.service_type || 'Unknown'}
                 </td>
                 <td className="p-4">
                   <div className="font-semibold text-white truncate">{log.resource_name || log.native_id}</div>

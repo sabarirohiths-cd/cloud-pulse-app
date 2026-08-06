@@ -20,14 +20,25 @@ export const useControlSync = (account) => {
                 }
             } catch(e) {}
         };
-        check();
-        const interval = setInterval(check, syncing ? 3000 : 15000);
+        let interval;
+        if (syncing) {
+            // Delay first poll to allow POST request to reach server
+            interval = setInterval(check, 3000);
+        } else {
+            check();
+            interval = setInterval(check, 15000);
+        }
         return () => clearInterval(interval);
     }, [account, syncing]);
 
     useEffect(() => {
         if (prevSyncing.current && !syncing) {
-            toast.success(syncMessage.current || "Control sync completed successfully!");
+            const msg = syncMessage.current || "Control sync completed successfully!";
+            if (msg.toLowerCase().startsWith("failed") || msg.toLowerCase().startsWith("error") || msg.toLowerCase().startsWith("fatal")) {
+                toast.error(msg);
+            } else {
+                toast.success(msg);
+            }
             syncMessage.current = null;
         }
         prevSyncing.current = syncing;
@@ -67,14 +78,25 @@ export const useInventorySync = (account, provider, configId) => {
                 }
             } catch(e) {}
         };
-        check();
-        const interval = setInterval(check, syncing ? 3000 : 15000);
+        let interval;
+        if (syncing) {
+            // Delay first poll to allow POST request to reach server
+            interval = setInterval(check, 3000);
+        } else {
+            check();
+            interval = setInterval(check, 15000);
+        }
         return () => clearInterval(interval);
     }, [account, syncing]);
 
     useEffect(() => {
         if (prevSyncing.current && !syncing) {
-            toast.success(syncMessage.current || "Inventory sync completed successfully!");
+            const msg = syncMessage.current || "Inventory sync completed successfully!";
+            if (msg.toLowerCase().startsWith("failed") || msg.toLowerCase().startsWith("error") || msg.toLowerCase().startsWith("fatal")) {
+                toast.error(msg);
+            } else {
+                toast.success(msg);
+            }
             syncMessage.current = null;
         }
         prevSyncing.current = syncing;

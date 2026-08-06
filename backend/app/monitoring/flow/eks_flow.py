@@ -35,10 +35,18 @@ async def run_eks_flow(account_name: str, region: str, resource_id: str, target_
                 for asg in unmanaged_asgs:
                     asg_name = asg.get('name')
                     if asg_name:
-                        logger.info(f"[EKS Flow] EKS reached target. Delegating to ASG Flow for {asg_name}")
+                        logger.info(f"[EKS Flow] EKS reached target. Delegating to ASG Flow for unmanaged ASG {asg_name}")
                         # Spawn the ASG flow in the background
                         asyncio.create_task(
                             run_asg_flow(account_name, region, asg_name, target_state)
                         )
+                
+                # 3. Trigger ASG Flow for the managed ASG if it exists
+                managed_asg_name = config_data.get('asg_name')
+                if managed_asg_name:
+                    logger.info(f"[EKS Flow] EKS reached target. Delegating to ASG Flow for managed ASG {managed_asg_name}")
+                    asyncio.create_task(
+                        run_asg_flow(account_name, region, managed_asg_name, target_state)
+                    )
             except Exception as e:
                 logger.error(f"[EKS Flow] Failed to parse config for {resource_id}: {e}")

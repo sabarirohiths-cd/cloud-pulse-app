@@ -166,12 +166,18 @@ class EKSHandler(BaseScaleToZeroHandler):
                 except Exception as e:
                     logger.warning(f"Failed to stop unmanaged EKS ASG {a_name}: {e}")
         
+        asg_name = None
+        resources = nodegroup.get('resources', {})
+        if resources and resources.get('autoScalingGroups'):
+            asg_name = resources['autoScalingGroups'][0].get('name')
+        
         saved_config_obj = {
             "minSize": current_min if current_desired > 0 else 1,
             "desiredSize": current_desired if current_desired > 0 else 1,
             "maxSize": current_max,
             "unmanaged_asgs": asg_states,
-            "has_karpenter": has_karpenter
+            "has_karpenter": has_karpenter,
+            "asg_name": asg_name
         }
         
         saved_config = json.dumps(saved_config_obj)
@@ -224,6 +230,23 @@ class EKSHandler(BaseScaleToZeroHandler):
                                 'scale_to_zero_eligible': False
                             })
                             continue
+                            
+                        # Emit the standard EKS cluster as a parent resource so children can group under it
+                        resources.append({
+                            'resource_id': cluster_name,
+                            'resource_name': cluster_name,
+                            'cloud_provider': 'aws',
+                            'region': region,
+                            'service_type': ServiceType.EKS.value,
+                            'control_type': ControlType.SCALE_TO_ZERO.value,
+                            'status': cluster_info.get('status', 'RUNNING'),
+                            'instance_spec': f"EKS Cluster (k8s {cluster_info.get('version', 'unknown')})",
+                            'tags': cluster_info.get('tags', {}),
+                            'parent_resource_id': None,
+                            'last_synced_at': datetime.now(timezone.utc),
+                            'compute_mode': 'STANDARD',
+                            'scale_to_zero_eligible': False
+                        })
                             
                     except ClientError as e:
                         logger.warning(f"[EKSHandler] Error describing cluster {cluster_name}: {e}")

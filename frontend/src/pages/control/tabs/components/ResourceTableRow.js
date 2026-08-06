@@ -74,36 +74,47 @@ export const ResourceTableRow = ({
       </td>
       <td className="p-4 text-right">
         <div className="flex justify-end gap-2">
-          <button
-            onClick={() => setModalState({ isOpen: true, mode: 'schedule', resource: r })}
-            className="px-2.5 py-1 text-[11px] font-medium bg-zinc-800 text-zinc-300 hover:text-white rounded border border-zinc-700 hover:bg-zinc-700 transition-colors"
-          >
-            Schedule
-          </button>
-          {r.status === 'RUNNING' ? (
-            <button
-              onClick={() => setModalState({ isOpen: true, mode: 'stop', resource: r })}
-              disabled={isAsgManaged}
-              title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
-                  ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
-                  : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
-                }`}
-            >
-              {isScaleToZero ? 'SCALE TO ZERO' : 'STOP'}
-            </button>
+          {!(!r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase())) ? (
+            <>
+              <button
+                onClick={() => setModalState({ isOpen: true, mode: 'schedule', resource: r })}
+                className="px-2.5 py-1 text-[11px] font-medium bg-zinc-800 text-zinc-300 hover:text-white rounded border border-zinc-700 hover:bg-zinc-700 transition-colors"
+              >
+                Schedule
+              </button>
+              {r.status === 'RUNNING' ? (
+                <button
+                  onClick={() => setModalState({ isOpen: true, mode: 'stop', resource: r })}
+                  disabled={isAsgManaged}
+                  title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
+                      ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                      : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
+                    }`}
+                >
+                  {isScaleToZero ? 'SCALE TO ZERO' : 'STOP'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setModalState({ isOpen: true, mode: 'start', resource: r })}
+                  disabled={isAsgManaged}
+                  title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
+                      ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                      : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
+                    }`}
+                >
+                  START
+                </button>
+              )}
+            </>
           ) : (
-            <button
-              onClick={() => setModalState({ isOpen: true, mode: 'start', resource: r })}
-              disabled={isAsgManaged}
-              title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
-                  ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
-                  : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
-                }`}
+            <span 
+              className="px-2.5 py-1 text-[10px] font-medium text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded cursor-help"
+              title="This is a structural parent cluster. Expand this row to schedule or control its underlying compute resources."
             >
-              START
-            </button>
+              Expand to Control
+            </span>
           )}
         </div>
       </td>

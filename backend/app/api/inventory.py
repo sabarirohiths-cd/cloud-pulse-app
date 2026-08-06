@@ -93,6 +93,8 @@ async def trigger_sync(
     if get_sync_status("inventory", db_config.account_name):
         return {"status": "already_syncing"}
         
+    set_sync_status("inventory", db_config.account_name, True)
+        
     async def task_wrapper():
         msg = await _background_inventory_sync(provider, config_id)
         if db_config.account_name:

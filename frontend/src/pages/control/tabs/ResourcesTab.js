@@ -112,7 +112,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   useEffect(() => {
     const interval = setInterval(() => {
       const transitioningResources = resources.filter(r =>
-        !['RUNNING', 'STOPPED', 'UNKNOWN', 'TERMINATED'].includes(r.status.toUpperCase())
+        !['RUNNING', 'STOPPED', 'UNKNOWN', 'TERMINATED', 'ACTIVE', 'AVAILABLE'].includes(r.status.toUpperCase())
       );
   
       if (transitioningResources.length === 0) return;
@@ -263,6 +263,14 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   const uniqueGroups = Array.from(new Set(resources.map(r => getGroup(r.service_type))));
 
   const filteredResources = resources
+    .filter(r => {
+      // In flat view, hide parent clusters (EKS/ECS base clusters)
+      if (!isGroupView) {
+        const isParentCluster = !r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase());
+        if (isParentCluster) return false;
+      }
+      return true;
+    })
     .filter(r => filter.group === 'All' || getGroup(r.service_type) === filter.group)
     .filter(r => filter.type === 'All' || (r.service_type || '').toUpperCase() === filter.type)
     .filter(r => filter.powerState === 'All' || r.status === filter.powerState)
