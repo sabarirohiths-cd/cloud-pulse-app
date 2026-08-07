@@ -1,0 +1,122 @@
+Cloud-pulse-control-module/
+├── .gitignore
+├── backend
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── api
+│   │   │   ├── __init__.py
+│   │   │   ├── actions.py
+│   │   │   ├── cloud_config.py
+│   │   │   ├── control.py
+│   │   │   ├── inventory.py
+│   │   │   └── notifications.py
+│   │   ├── core
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py
+│   │   │   ├── constants.py
+│   │   │   ├── database.py
+│   │   │   ├── scheduler.py
+│   │   │   └── security.py
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── config
+│   │   │   ├── control
+│   │   │   ├── inventory
+│   │   │   └── system
+│   │   ├── monitoring
+│   │   │   ├── flow
+│   │   │   ├── base_monitor.py
+│   │   │   └── state_monitor.py
+│   │   ├── repositories
+│   │   │   ├── control_repository.py
+│   │   │   └── inventory_repository.py
+│   │   ├── schemas
+│   │   │   ├── __init__.py
+│   │   │   ├── config
+│   │   │   ├── control
+│   │   │   ├── inventory
+│   │   │   └── system
+│   │   └── services
+│   │       ├── aws
+│   │       │   ├── __init__.py
+│   │       │   ├── discovery
+│   │       │   │   ├── __init__.py
+│   │       │   │   ├── asg_discovery.py
+│   │       │   │   ├── dynamic_discovery.py
+│   │       │   │   ├── ecs_discovery.py
+│   │       │   │   └── eks_discovery.py
+│   │       │   ├── handlers
+│   │       │   │   ├── __init__.py
+│   │       │   │   ├── destroy_recreate
+│   │       │   │   │   └── __init__.py
+│   │       │   │   ├── direct_power
+│   │       │   │   │   ├── __init__.py
+│   │       │   │   │   ├── documentdb_handler.py
+│   │       │   │   │   ├── ec2_handler.py
+│   │       │   │   │   ├── rds_handler.py
+│   │       │   │   │   ├── redshift_handler.py
+│   │       │   │   │   ├── sagemaker_handler.py
+│   │       │   │   │   └── workspaces_handler.py
+│   │       │   │   └── scale_to_zero
+│   │       │   │       ├── __init__.py
+│   │       │   │       ├── asg_handler.py
+│   │       │   │       ├── ecs_handler.py
+│   │       │   │       └── eks_handler.py
+│   │       │   ├── scanner.py
+│   │       │   ├── service.py
+│   │       │   └── session.py
+│   │       ├── azure
+│   │       │   ├── __init__.py
+│   │       │   ├── control
+│   │       │   │   └── __init__.py
+│   │       │   └── service.py
+│   │       ├── gcp
+│   │       │   ├── __init__.py
+│   │       │   ├── control
+│   │       │   │   └── __init__.py
+│   │       │   └── service.py
+│   │       ├── base_handler.py
+│   │       ├── base_service.py
+│   │       ├── control_service.py
+│   │       ├── inventory_service.py
+│   │       ├── notifier.py
+│   │       └── sync_tracker.py
+│   ├── data
+│   │   ├── cloud_pulse_control.db
+│   │   ├── cloud_pulse_control.db-shm
+│   │   └── cloud_pulse_control.db-wal
+│   ├── main.py
+│   └── requirements.txt
+├── frontend
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── public
+│   │   ├── aws-logo.svg
+│   │   ├── azure-logo.svg
+│   │   ├── gcp-logo.svg
+│   │   └── index.html
+│   ├── src
+│   │   ├── App.js
+│   │   ├── api
+│   │   │   ├── api.js
+│   │   │   ├── config.js
+│   │   │   ├── control.js
+│   │   │   └── inventory.js
+│   │   ├── components
+│   │   │   └── ui
+│   │   │       ├── CustomSelect.js
+│   │   │       └── FilterBar.js
+│   │   ├── index.css
+│   │   ├── index.js
+│   │   └── pages
+│   │       ├── config
+│   │       │   └── ConfigPage.js
+│   │       └── control
+│   │           ├── ActionModal.js
+│   │           ├── ControlPage.js
+│   │           └── tabs
+│   │               ├── ActivityLogTab.js
+│   │               ├── OverviewTab.js
+│   │               └── ResourcesTab.js
+│   └── tailwind.config.js
+└──
