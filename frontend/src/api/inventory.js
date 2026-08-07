@@ -74,11 +74,12 @@ export const getSummary = async (provider, account) => {
   return { data };
 };
 
-export const getAdvancedSummary = async (account, provider, region, linked_account, tag) => {
+export const getAdvancedSummary = async (account, provider, region, linked_account, tag, resourceType) => {
   const params = { account, provider };
   if (region && region !== 'All Regions') params.region = region;
   if (linked_account && linked_account !== 'All Accounts') params.linked_account = linked_account;
   if (tag && tag !== 'All') params.tag = tag;
+  if (resourceType) params.resource_type = resourceType;
 
   const response = await apiClient.get('/inventory/summary/advanced', { params });
   return { data: response.data };

@@ -148,10 +148,11 @@ async def get_advanced_summary(
     region: str = Query(None),
     linked_account: str = Query(None),
     tag: str = Query(None),
+    resource_type: str = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     from app.repositories.inventory_repository import inventory_repository
-    return await inventory_repository.get_advanced_summary(db, account, provider, region, linked_account, tag)
+    return await inventory_repository.get_advanced_summary(db, account, provider, region, linked_account, tag, resource_type)
 
 @router.get("/resources")
 async def get_resources(

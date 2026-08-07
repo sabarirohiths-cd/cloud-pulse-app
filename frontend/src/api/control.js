@@ -35,6 +35,8 @@ export const getControlSummary = async (filters = {}) => {
   if (filters.provider && filters.provider !== 'All Providers') params.provider = filters.provider;
   if (filters.region && filters.region !== 'All Regions') params.region = filters.region;
   if (filters.tag && filters.tag !== 'All Tags') params.tag = filters.tag;
+  if (filters.serviceType) params.service_type = filters.serviceType;
+  if (filters.status && filters.status !== 'All') params.status = filters.status;
   
   const response = await apiClient.get('/control/summary', { params });
   return response.data;

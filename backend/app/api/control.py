@@ -32,9 +32,11 @@ async def get_summary(
     provider: Optional[str] = None,
     region: Optional[str] = None,
     tag: Optional[str] = None,
+    service_type: Optional[str] = None,
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    return await control_repository.get_dashboard_summary(db, account_name, provider, region, tag)
+    return await control_repository.get_dashboard_summary(db, account_name, provider, region, tag, service_type, status)
 
 @router.get("/resources")
 async def list_controllable_resources(

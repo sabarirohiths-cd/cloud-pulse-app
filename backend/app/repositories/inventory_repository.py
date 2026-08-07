@@ -234,13 +234,19 @@ class InventoryRepository:
         return heatmap_data
 
     @staticmethod
-    async def get_advanced_summary(db: AsyncSession, account: str, provider: str = None, region: str = None, linked_account: str = None, tag: str = None) -> dict:
+    async def get_advanced_summary(db: AsyncSession, account: str, provider: str = None, region: str = None, linked_account: str = None, tag: str = None, resource_type: str = None) -> dict:
         conditions = [InventoryResource.status == "active"]
         if account: conditions.append(InventoryResource.account_name == account)
         if provider: conditions.append(InventoryResource.provider == provider)
         if region and region != 'All Regions': conditions.append(InventoryResource.region == region)
         if linked_account and linked_account != 'All Accounts': conditions.append(InventoryResource.linked_account == linked_account)
         if tag and tag != 'All': conditions.append(InventoryResource.tags.like(f'%"{tag}"%'))
+        if resource_type:
+            types = [t.strip() for t in resource_type.split(',')]
+            if len(types) == 1:
+                conditions.append(InventoryResource.resource_type == types[0])
+            else:
+                conditions.append(InventoryResource.resource_type.in_(types))
         
         from sqlalchemy import case
         today_prefix = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
@@ -266,6 +272,12 @@ class InventoryRepository:
         if region and region != 'All Regions': del_conds.append(InventoryResource.region == region)
         if linked_account and linked_account != 'All Accounts': del_conds.append(InventoryResource.linked_account == linked_account)
         if tag and tag != 'All': del_conds.append(InventoryResource.tags.like(f'%"{tag}"%'))
+        if resource_type:
+            types = [t.strip() for t in resource_type.split(',')]
+            if len(types) == 1:
+                del_conds.append(InventoryResource.resource_type == types[0])
+            else:
+                del_conds.append(InventoryResource.resource_type.in_(types))
         
         deleted_today_stmt = select(func.count()).where(and_(*del_conds))
         deleted_today = (await db.execute(deleted_today_stmt)).scalar() or 0
@@ -276,6 +288,12 @@ class InventoryRepository:
         if region and region != 'All Regions': del_type_conds.append(InventoryResource.region == region)
         if linked_account and linked_account != 'All Accounts': del_type_conds.append(InventoryResource.linked_account == linked_account)
         if tag and tag != 'All': del_type_conds.append(InventoryResource.tags.like(f'%"{tag}"%'))
+        if resource_type:
+            types = [t.strip() for t in resource_type.split(',')]
+            if len(types) == 1:
+                del_type_conds.append(InventoryResource.resource_type == types[0])
+            else:
+                del_type_conds.append(InventoryResource.resource_type.in_(types))
         
         del_type_stmt = select(InventoryResource.resource_type, func.count()).where(and_(*del_type_conds)).group_by(InventoryResource.resource_type)
         del_type_res = await db.execute(del_type_stmt)

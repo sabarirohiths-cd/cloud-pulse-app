@@ -12,18 +12,13 @@ class ControlRepository:
         return res.scalars().all()
 
     @staticmethod
-    async def get_dashboard_summary(db: AsyncSession, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None):
-        stmt = select(
-            func.count(ControlResource.resource_id),
-            func.sum(case((ControlResource.status == 'RUNNING', 1), else_=0)),
-            func.sum(case((ControlResource.status == 'STOPPED', 1), else_=0)),
-            func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
-        )
+    async def get_dashboard_summary(db: AsyncSession, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None, service_type: Optional[str] = None, status: Optional[str] = None):
+        conditions = []
         
         from app.core.constants import PARENT_CONTAINER_SERVICES
         
         # Exclude parent clusters from the count since they are non-actionable containers
-        stmt = stmt.where(
+        conditions.append(
             ~and_(
                 ControlResource.service_type.in_(PARENT_CONTAINER_SERVICES),
                 ControlResource.parent_resource_id.is_(None)
@@ -31,23 +26,49 @@ class ControlRepository:
         )
         
         if account_name and account_name != 'All Accounts':
-            stmt = stmt.where(ControlResource.account_name == account_name)
+            conditions.append(ControlResource.account_name == account_name)
         if provider and provider != 'AWS':
-            stmt = stmt.where(ControlResource.cloud_provider == provider.lower())
+            conditions.append(ControlResource.cloud_provider == provider.lower())
         if region and region != 'All Regions':
-            stmt = stmt.where(ControlResource.region == region)
+            conditions.append(ControlResource.region == region)
         if tag and tag != 'All Tags':
             tag_key = tag.split(":")[0]
-            stmt = stmt.where(ControlResource.tags_json.like(f'%"{tag_key}"%'))
+            conditions.append(ControlResource.tags_json.like(f'%"{tag_key}"%'))
+        if status and status != 'All':
+            conditions.append(ControlResource.status == status)
+        if service_type:
+            types = [t.strip() for t in service_type.split(',')]
+            if len(types) == 1:
+                conditions.append(ControlResource.service_type == types[0])
+            else:
+                conditions.append(ControlResource.service_type.in_(types))
+            
+        stmt = select(
+            func.count(ControlResource.resource_id),
+            func.sum(case((ControlResource.status == 'RUNNING', 1), else_=0)),
+            func.sum(case((ControlResource.status == 'STOPPED', 1), else_=0)),
+            func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
+        ).where(and_(*conditions) if conditions else True)
             
         res = await db.execute(stmt)
         row = res.first()
+        
+        type_stmt = select(ControlResource.service_type, func.count()).where(and_(*conditions) if conditions else True).group_by(ControlResource.service_type)
+        type_res = await db.execute(type_stmt)
+        type_breakdown = [{"type": t, "count": c} for t, c in type_res.all()]
+        type_breakdown.sort(key=lambda x: x["count"], reverse=True)
+        
+        reg_stmt = select(ControlResource.region, func.count()).where(and_(*conditions) if conditions else True).group_by(ControlResource.region)
+        reg_res = await db.execute(reg_stmt)
+        region_breakdown = [{"region": r, "count": c} for r, c in reg_res.all() if r]
         
         return {
             "total_count": int(row[0] or 0),
             "running_count": int(row[1] or 0),
             "stopped_count": int(row[2] or 0),
-            "active_schedules_count": int(row[3] or 0)
+            "active_schedules_count": int(row[3] or 0),
+            "type_breakdown": type_breakdown,
+            "region_breakdown": region_breakdown
         }
 
     @staticmethod

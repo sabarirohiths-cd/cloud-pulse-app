@@ -5,11 +5,12 @@ import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { toast } from 'sonner';
-import { listResources, togglePower, saveSchedule, getDbState } from '../../../api/control';
+import { listResources, togglePower, saveSchedule, getDbState, getControlSummary } from '../../../api/control';
 import ActionModal from '../ActionModal';
 import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 import { buildResourceTree } from '../../../utils/resource-tree';
 import { ResourceTableRow } from './components/ResourceTableRow';
+import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
 
 export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger }) {
   const [resources, setResources] = useState([]);
@@ -260,8 +261,6 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
     }
   };
 
-  const uniqueGroups = Array.from(new Set(resources.map(r => getGroup(r.service_type))));
-
   const matchesFilter = (r) => {
     const groupMatch = filter.group === 'All' || getGroup(r.service_type) === filter.group;
     const typeMatch = filter.type === 'All' || (r.service_type || '').toUpperCase() === filter.type;
@@ -295,22 +294,27 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
     return familyMatchedIds.has(r.resource_id);
   });
 
+  const getTypeParam = () => {
+    if (filter.group === 'All') return filter.type === 'All' ? null : filter.type;
+    if (filter.type !== 'All') return filter.type;
+    if (filter.group === 'RDS') return 'RDS,AURORA';
+    if (filter.group === 'EC2') return 'EC2,EBS,ELB,ASG';
+    return filter.group;
+  };
+
   const treeData = React.useMemo(() => buildResourceTree(filteredResources, isGroupView, expandedRowIds), [filteredResources, isGroupView, expandedRowIds]);
 
-  const groupOptions = [
-    { label: 'All Groups', value: 'All' },
-    ...uniqueGroups.map(g => ({ label: g.toUpperCase(), value: g }))
-  ];
-
-  const availableTypesForGroup = Array.from(new Set(resources.filter(r => {
-    if (!filter.group || filter.group === 'All') return true;
-    return getGroup(r.service_type) === filter.group;
-  }).map(r => (r.service_type || '').toUpperCase())));
-
-  const typeOptions = [
-    { label: 'All Types', value: 'All' },
-    ...availableTypesForGroup.map(type => ({ label: type, value: type }))
-  ];
+  const { groupOptions, typeOptions } = useDynamicFilters({
+    module: 'control',
+    fetchSummary: getControlSummary,
+    filters: filter,
+    topFilters: topFilters,
+    dynamicGroups: [],
+    dynamicTypes: [],
+    dynamicRegions: [],
+    getGroupFn: getGroup,
+    activeTypeParam: getTypeParam()
+  });
 
   const powerStateOptions = [
     { label: 'All States', value: 'All' },
@@ -325,8 +329,8 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           showLabel={true}
           className="flex flex-wrap items-center gap-4"
           filters={[
-            { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: groupOptions, width: "max-w-[130px]" },
-            { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: typeOptions, width: "max-w-[150px]" },
+            { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v, type: 'All' }), options: [{ label: 'All Groups', value: 'All' }, ...groupOptions.map(g => ({ label: `${g.label || g.group.toUpperCase()} (${g.count})`, value: g.group }))], width: "max-w-[130px]" },
+            { label: "Type:", value: filter.type, onChange: v => setFilter({ ...filter, type: v }), options: [{ label: 'All Types', value: 'All' }, ...typeOptions.map(t => ({ label: `${t.label} (${t.count})`, value: t.type }))], width: "max-w-[150px]" },
             { label: "State:", value: filter.powerState, onChange: v => setFilter({ ...filter, powerState: v }), options: powerStateOptions, width: "max-w-[130px]" }
           ]}
         />
