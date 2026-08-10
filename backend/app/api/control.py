@@ -121,9 +121,10 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
         if sched and sched.parent_resource_id:
             is_ecs_service = (sched.service_type == 'ECS')
             is_eks_nodegroup = (sched.service_type == 'EKS' and sched.resource_id != sched.parent_resource_id)
-            is_unmanaged_eks_asg = (sched.service_type == 'ASG' and not '/' in sched.parent_resource_id)
+            is_unmanaged_eks_asg = (sched.service_type == 'ASG' and sched.instance_spec and 'EKS (Unmanaged)' in sched.instance_spec)
+            is_beanstalk_env = (sched.service_type == 'BEANSTALK')
             
-            if not (is_ecs_service or is_eks_nodegroup or is_unmanaged_eks_asg):
+            if not (is_ecs_service or is_eks_nodegroup or is_unmanaged_eks_asg or is_beanstalk_env):
                 raise HTTPException(status_code=400, detail=f"Resource is natively managed by {sched.parent_resource_id}. Please control the parent instead.")
 
         saved_config = sched.saved_config_json if sched else None

@@ -93,7 +93,7 @@ export const ResourceTableRow = ({
                 <><EyeOff className="h-3 w-3" /> Hidden</>
               )}
             </button>
-          ) : !(!r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase())) ? (
+          ) : !(!r.parent_resource_id && ['EKS', 'ECS', 'BEANSTALK'].includes((r.service_type || '').toUpperCase())) ? (
             <>
               <button
                 onClick={() => setModalState({ isOpen: true, mode: 'schedule', resource: r })}
@@ -129,10 +129,10 @@ export const ResourceTableRow = ({
             </>
           ) : (
             <span 
-              className="px-2.5 py-1 text-[10px] font-medium text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded cursor-help"
-              title="This is a structural parent cluster. Expand this row to schedule or control its underlying compute resources."
+              className="px-2.5 py-1 text-[10px] font-medium text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded cursor-help whitespace-nowrap"
+              title="This is a structural parent container. Expand this row to schedule or control its underlying compute resources."
             >
-              Expand to Control
+              Expand to Control {r.service_type === 'BEANSTALK' ? 'Application' : 'Cluster'}
             </span>
           )}
         </div>

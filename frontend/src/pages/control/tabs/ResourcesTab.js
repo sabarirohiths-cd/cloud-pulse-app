@@ -131,8 +131,12 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   
             if (oldState !== 'RUNNING' && newState === 'RUNNING') {
               toast.success(`Resource ${r.name || r.resource_id} is completely ON!`);
+              // Dispatch refresh to fetch any newly discovered child resources
+              window.dispatchEvent(new Event('app:refresh-data'));
             } else if (oldState !== 'STOPPED' && newState === 'STOPPED' && newState !== 'TERMINATED') {
               toast.success(`Resource ${r.name || r.resource_id} is completely OFF!`);
+              // Dispatch refresh to remove any cleaned-up child resources
+              window.dispatchEvent(new Event('app:refresh-data'));
             }
   
             setResources(prev => prev.map(res =>
@@ -142,9 +146,8 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
         } catch (e) {
           console.error(`Failed to poll state for ${r.resource_id}`, e);
           if (e.response && e.response.status === 404) {
-             setResources(prev => prev.map(res =>
-               res.resource_id === r.resource_id ? { ...res, status: 'TERMINATED' } : res
-             ));
+             // Resource has been deleted from the database (e.g. terminated EC2)
+             setResources(prev => prev.filter(res => res.resource_id !== r.resource_id));
           }
         }
       });
@@ -287,7 +290,10 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   const filteredResources = resources.filter(r => {
     if (!isGroupView) {
-      const isParentCluster = !r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase());
+      // DYNAMIC: A resource is a parent container if it has no parent itself, 
+      // AND there is at least one other resource that claims it as a parent.
+      // (Backend eager-loads families, so children are guaranteed to be in the array).
+      const isParentCluster = !r.parent_resource_id && resources.some(child => child.parent_resource_id === r.resource_id);
       if (isParentCluster) return false;
       return directlyMatchedIds.has(r.resource_id);
     }

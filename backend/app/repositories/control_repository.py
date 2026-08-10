@@ -15,15 +15,14 @@ class ControlRepository:
     async def get_dashboard_summary(db: AsyncSession, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None, service_type: Optional[str] = None, status: Optional[str] = None):
         conditions = []
         
-        from app.core.constants import PARENT_CONTAINER_SERVICES
+        # DYNAMIC: Exclude parent clusters from the count since they are non-actionable containers.
+        # We determine parents dynamically by finding any resource_id that is listed as a parent_resource_id.
+        parent_ids_stmt = select(ControlResource.parent_resource_id).where(ControlResource.parent_resource_id.is_not(None)).distinct()
+        parent_ids_res = await db.execute(parent_ids_stmt)
+        parent_ids = [pid for pid in parent_ids_res.scalars().all() if pid]
         
-        # Exclude parent clusters from the count since they are non-actionable containers
-        conditions.append(
-            ~and_(
-                ControlResource.service_type.in_(PARENT_CONTAINER_SERVICES),
-                ControlResource.parent_resource_id.is_(None)
-            )
-        )
+        if parent_ids:
+            conditions.append(~ControlResource.resource_id.in_(parent_ids))
         
         if account_name and account_name != 'All Accounts':
             conditions.append(ControlResource.account_name == account_name)

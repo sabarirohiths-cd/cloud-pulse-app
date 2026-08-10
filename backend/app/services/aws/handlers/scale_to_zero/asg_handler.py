@@ -161,9 +161,13 @@ class ASGHandler(BaseScaleToZeroHandler):
                     parent_id = find_parent_instance_from_asg(asg_name, session)
 
                 is_eks_managed = 'eks:nodegroup-name' in tags_dict
+                is_beanstalk = 'elasticbeanstalk:environment-name' in tags_dict
                 
                 spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
-                if is_eks_managed:
+                if is_beanstalk:
+                    parent_id = tags_dict['elasticbeanstalk:environment-name']
+                    spec = f"Beanstalk | {spec}"
+                elif is_eks_managed:
                     cluster_name = None
                     for k in tags_dict.keys():
                         if k.startswith('kubernetes.io/cluster/'):

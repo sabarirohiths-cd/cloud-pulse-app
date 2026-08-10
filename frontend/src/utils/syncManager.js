@@ -40,6 +40,8 @@ export const useControlSync = (account) => {
                 toast.success(msg);
             }
             syncMessage.current = null;
+            // Notify UI to refresh data now that the background sync has ACTUALLY completed
+            window.dispatchEvent(new Event('app:refresh-data'));
         }
         prevSyncing.current = syncing;
     }, [syncing]);

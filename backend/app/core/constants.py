@@ -20,4 +20,4 @@ STATE_ACTIVE = "active"
 STATE_DELETED = "deleted"
 
 # Container Parent Services (Excluded from individual control summaries)
-PARENT_CONTAINER_SERVICES = ['EKS', 'ECS', 'ASG']
+PARENT_CONTAINER_SERVICES = ['EKS', 'ECS', 'ASG', 'BEANSTALK']
