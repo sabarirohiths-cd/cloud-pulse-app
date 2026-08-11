@@ -33,6 +33,41 @@ export function buildResourceMap(filteredResources) {
       roots.push(resourceMap.get(r.resource_id));
     }
   });
+  
+  // Dynamically calculate aggregated status for root clusters/applications
+  const calculateAggregatedStatus = (node) => {
+    if (!node.children || node.children.length === 0) return node.status;
+    
+    const getDescendantStatuses = (n) => {
+      let statuses = n.children.map(c => c.status);
+      n.children.forEach(c => {
+        statuses = statuses.concat(getDescendantStatuses(c));
+      });
+      return statuses;
+    };
+    
+    const allStatuses = getDescendantStatuses(node).map(s => (s || '').toUpperCase());
+    const powerStates = allStatuses.filter(s => ['RUNNING', 'STOPPED', 'STARTING', 'STOPPING'].includes(s));
+    
+    if (powerStates.length === 0) return node.status;
+    
+    if (powerStates.some(s => s === 'STARTING')) return 'STARTING';
+    if (powerStates.some(s => s === 'STOPPING')) return 'STOPPING';
+    
+    const allStopped = powerStates.every(s => s === 'STOPPED');
+    if (allStopped) return 'STOPPED';
+    
+    const allRunning = powerStates.every(s => s === 'RUNNING');
+    if (allRunning) return 'RUNNING';
+    
+    return 'PARTIAL';
+  };
+
+  roots.forEach(root => {
+    if (['ECS', 'EKS', 'BEANSTALK'].includes((root.service_type || '').toUpperCase())) {
+      root.status = calculateAggregatedStatus(root);
+    }
+  });
 
   return { resourceMap, roots };
 }

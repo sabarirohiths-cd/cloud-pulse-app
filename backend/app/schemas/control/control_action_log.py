@@ -5,6 +5,7 @@ from datetime import datetime
 class ControlActionLogBase(BaseModel):
     native_id: str
     resource_name: Optional[str] = None
+    resource_type: Optional[str] = None
     account_name: str
     provider: str
     action_type: str

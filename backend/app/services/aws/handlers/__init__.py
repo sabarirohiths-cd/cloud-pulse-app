@@ -7,6 +7,8 @@ from .direct_power.workspaces_handler import WorkSpacesHandler
 from .scale_to_zero.asg_handler import ASGHandler
 from .scale_to_zero.ecs_handler import ECSScaleToZeroHandler
 from .scale_to_zero.eks_handler import EKSHandler
+from .scale_to_zero.apprunner_handler import AppRunnerHandler
+from .scale_to_zero.beanstalk_handler import BeanstalkHandler
 
 # Registry of active AWS resource handlers
 # Add new handlers here to instantly enable discovery and control across the platform.
@@ -19,5 +21,7 @@ REGISTERED_HANDLERS = [
     WorkSpacesHandler(),
     ASGHandler(),
     ECSScaleToZeroHandler(),
-    EKSHandler()
+    EKSHandler(),
+    AppRunnerHandler(),
+    BeanstalkHandler()
 ]

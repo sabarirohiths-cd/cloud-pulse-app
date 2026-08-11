@@ -111,7 +111,7 @@ export function ActivityLogTab({ topFilters }) {
             data={logs}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
+              Table: (props) => <table {...props} className="w-full text-left text-[11px]" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
               TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-20 text-zinc-400 uppercase text-[10px]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/60 text-zinc-300" />),

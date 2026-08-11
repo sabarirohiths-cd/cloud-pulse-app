@@ -135,18 +135,18 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
             data={resources}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-20" />),
+              Table: (props) => <table {...props} className="w-full text-left text-[11px]" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-40 bg-[#111114]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),
             }}
             fixedHeaderContent={() => (
-              <tr className="bg-[#0a0a0f]">
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Identifier</th>
+              <tr className="bg-[#111114]">
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%] bg-[#111114] border-b border-[#1f1f24]">Identifier</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%] bg-[#111114] border-b border-[#1f1f24]">Type</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Billable</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Actions</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Actions</th>
               </tr>
             )}
             itemContent={(index, r) => (
@@ -155,12 +155,12 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
                   <div className="text-[13px] font-semibold text-zinc-200 truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
                   <div className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
                 </td>
-                <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium uppercase">
+                <td className="px-4 py-3 text-[11px] text-zinc-400 font-medium uppercase">
                   {formatType(r.resource_type, r.provider)}
                 </td>
-                <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium">{r.region}</td>
+                <td className="px-4 py-3 text-[11px] text-zinc-400 font-medium">{r.region}</td>
                 <td className="px-4 py-3">
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${r.billable ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-700/50 text-zinc-500'}`}>{r.billable ? 'Yes' : 'No'}</span>
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${r.billable ? 'bg-blue-500/10 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'bg-zinc-700/50 text-zinc-500 shadow-[0_0_10px_rgba(113,113,122,0.1)]'}`}>{r.billable ? 'Yes' : 'No'}</span>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => setSelectedResource(r)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-md transition-colors">

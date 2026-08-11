@@ -267,7 +267,7 @@ export default function InventoryPage() {
   const dynamicTypes = (serverSummary?.type_breakdown || [])
     .filter(t => filter.group === 'All' || strategy.getResourceGroup(t.type, '') === filter.group)
     .sort((a, b) => b.count - a.count);
-    
+
   // Compute deleted dynamic groups and types for the Deleted Tab
   const deletedGroupCounts = {};
   (serverSummary?.deleted_type_breakdown || []).forEach(t => {
@@ -277,7 +277,7 @@ export default function InventoryPage() {
   const deletedDynamicGroups = Object.keys(deletedGroupCounts)
     .map(k => ({ group: k, count: deletedGroupCounts[k] }))
     .sort((a, b) => b.count - a.count);
-    
+
   const deletedDynamicTypes = (serverSummary?.deleted_type_breakdown || [])
     .filter(t => deletedFilter.group === 'All' || strategy.getResourceGroup(t.type, '') === deletedFilter.group)
     .sort((a, b) => b.count - a.count);
@@ -290,24 +290,16 @@ export default function InventoryPage() {
       <div className="sticky -top-6 h-6 -mx-6 -mt-6 bg-[#0a0a0f]/80 backdrop-blur-md z-30 pointer-events-none" />
       <div className="space-y-6 relative">
         <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {topFilters.provider && (
-            <img src={`/${topFilters.provider.toLowerCase()}-logo.svg`} alt={topFilters.provider} className="h-10 w-10 object-contain" />
-          )}
-          <div>
-            <h1 className="text-xl font-semibold flex items-center gap-3 text-[#e4e4e7] tracking-tight">
-              {topFilters.provider || 'Cloud'} - Inventory Insights ({selectedAccount || 'None'})
-              {loadingSummary && accounts.length > 0 && (
-                <>
-                  <span className="opacity-0" style={{ animation: 'fadeIn 0.3s ease-in-out 0.15s forwards' }}>
-                    <RefreshCw className="h-4 w-4 text-zinc-500 animate-spin" />
-                  </span>
-                  <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
-                </>
-              )}
-            </h1>
-            <p className="text-[11px] text-[#a1a1aa] mt-1">Track all cloud resources • Detect daily changes</p>
-          </div>
+          <div className="flex items-center gap-4">
+            {topFilters.provider && (
+              <img src={`/${topFilters.provider.toLowerCase()}-logo.svg`} alt="" className="h-10 w-10 object-contain shrink-0" />
+            )}
+            <div>
+              <h1 className="text-xl font-semibold flex items-center gap-3 text-[#e4e4e7] tracking-tight">
+                {topFilters.provider || 'Cloud'} - Inventory Insights ({selectedAccount || 'None'})
+              </h1>
+              <p className="text-[11px] text-[#a1a1aa] mt-1">Track all cloud resources • Detect daily changes</p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <NotificationBell />
@@ -322,74 +314,79 @@ export default function InventoryPage() {
           </div>
         </div>
 
-      <TopFilters
-        topFilters={topFilters}
-        setTopFilters={setTopFilters}
-        selectedAccount={selectedAccount}
-        setSelectedAccount={setSelectedAccount}
-        accounts={accounts}
-        availableRegions={filterOptions.availableRegions}
-        availableLinked={filterOptions.availableLinked}
-        availableTags={filterOptions.availableTags}
-      />
-
-      <div className="border-b border-zinc-800 flex gap-6">
-        {['overview', 'changes', 'resources', 'deleted'].map(t => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              localStorage.setItem('pulse_inventory_active_tab', t);
-              if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
-              if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
-            }}
-            className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${tab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'overview' && (
-        <Overview
-          summary={serverSummary}
-          filteredTrend={filteredTrend}
-          dynamicTypes={dynamicTypes}
-          dynamicRegions={dynamicRegions}
-          onKpiClick={(type) => {
-            if (type === 'new') {
-              setTab('resources');
-              localStorage.setItem('pulse_inventory_active_tab', 'resources');
-              setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
-            } else if (type === 'deleted') {
-              setTab('deleted');
-              localStorage.setItem('pulse_inventory_active_tab', 'deleted');
-              setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
-            }
-          }}
-          donut={donut}
-          tagDonut={tagDonut}
-          pieGroupFilter={pieGroupFilter}
-          setPieGroupFilter={setPieGroupFilter}
-          crossFilterType={crossFilterType}
-          setCrossFilterType={setCrossFilterType}
-          canDrillDown={canDrillDown}
+        <TopFilters
           topFilters={topFilters}
           setTopFilters={setTopFilters}
           selectedAccount={selectedAccount}
+          setSelectedAccount={setSelectedAccount}
+          accounts={accounts}
+          availableRegions={filterOptions.availableRegions}
+          availableLinked={filterOptions.availableLinked}
+          availableTags={filterOptions.availableTags}
         />
-      )}
-      {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
-      {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
-      {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={deletedDynamicGroups} dynamicTypes={deletedDynamicTypes} dynamicRegions={deletedDynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
 
-      {tab !== 'overview' && <ScrollToTopButton />}
+        {/* Tabs and Content Group */}
+        <div>
+          <div className="border-b border-zinc-800 flex gap-6">
+            {['overview', 'changes', 'resources', 'deleted'].map(t => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTab(t);
+                  localStorage.setItem('pulse_inventory_active_tab', t);
+                  if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
+                  if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
+                }}
+                className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${tab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
 
-      <ResourceDetailModal
-        selectedResource={selectedResource}
-        setSelectedResource={setSelectedResource}
-      />
-    </div>
+          <div className="pt-4">
+            {tab === 'overview' && (
+              <Overview
+                summary={serverSummary}
+                filteredTrend={filteredTrend}
+                dynamicTypes={dynamicTypes}
+                dynamicRegions={dynamicRegions}
+                onKpiClick={(type) => {
+                  if (type === 'new') {
+                    setTab('resources');
+                    localStorage.setItem('pulse_inventory_active_tab', 'resources');
+                    setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+                  } else if (type === 'deleted') {
+                    setTab('deleted');
+                    localStorage.setItem('pulse_inventory_active_tab', 'deleted');
+                    setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+                  }
+                }}
+                donut={donut}
+                tagDonut={tagDonut}
+                pieGroupFilter={pieGroupFilter}
+                setPieGroupFilter={setPieGroupFilter}
+                crossFilterType={crossFilterType}
+                setCrossFilterType={setCrossFilterType}
+                canDrillDown={canDrillDown}
+                topFilters={topFilters}
+                setTopFilters={setTopFilters}
+                selectedAccount={selectedAccount}
+              />
+            )}
+            {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
+            {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
+            {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={deletedDynamicGroups} dynamicTypes={deletedDynamicTypes} dynamicRegions={deletedDynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
+          </div>
+        </div>
+
+        {tab !== 'overview' && <ScrollToTopButton />}
+
+        <ResourceDetailModal
+          selectedResource={selectedResource}
+          setSelectedResource={setSelectedResource}
+        />
+      </div>
     </>
   );
 }

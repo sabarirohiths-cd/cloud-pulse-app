@@ -1,5 +1,6 @@
 import React from 'react';
-import { Server, Database, ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ResourceIcon } from '../../../../components/ui/ResourceIcon';
 
 export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
   const isExpandable = r._isExpandable;
@@ -29,11 +30,7 @@ export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
         )}
 
         <div className={`flex-shrink-0 p-1.5 rounded-lg ${r.is_visible ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-800 text-zinc-500'}`}>
-          {r.service_type?.toLowerCase() === 'ec2' ? (
-            <Server className="w-3.5 h-3.5" />
-          ) : (
-            <Database className="w-3.5 h-3.5" />
-          )}
+          <ResourceIcon serviceType={r.service_type} className="w-3.5 h-3.5" />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -55,31 +52,16 @@ export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
       </div>
 
       <div className="flex items-center gap-3 pl-4">
-        {r.is_visible ? (
-          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
-            Visible
-          </span>
-        ) : (
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
-            Hidden
-          </span>
-        )}
-        
-        {/* iOS Style Toggle Switch - Compacted */}
+        {/* Boxy Toggle Button */}
         <button
           onClick={() => handleToggle(r)}
-          className={`relative inline-flex h-4 w-7 flex-shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            r.is_visible ? 'bg-blue-500' : 'bg-zinc-700'
+          className={`inline-flex items-center justify-center min-w-[70px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+            r.is_visible 
+              ? 'bg-blue-600/10 text-blue-400 border-blue-600/30 hover:bg-blue-600/20' 
+              : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-300'
           }`}
-          role="switch"
-          aria-checked={r.is_visible}
         >
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-              r.is_visible ? 'translate-x-[11px]' : 'translate-x-0'
-            }`}
-          />
+          {r.is_visible ? 'Visible' : 'Hidden'}
         </button>
       </div>
     </div>

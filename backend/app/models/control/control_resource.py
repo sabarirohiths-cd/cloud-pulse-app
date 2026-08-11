@@ -17,9 +17,6 @@ class ServiceType(str, enum.Enum):
     EKS = "EKS"
     APP_RUNNER = "APP_RUNNER"
     BEANSTALK = "BEANSTALK"
-    OPENSEARCH = "OPENSEARCH"
-    NAT_GATEWAY = "NAT_GATEWAY"
-    TRANSIT_GATEWAY = "TRANSIT_GATEWAY"
 
 class ControlType(str, enum.Enum):
     DIRECT_POWER = "DIRECT_POWER"

@@ -180,37 +180,25 @@ export function SettingsTab({ topFilters }) {
   return (
     <div className="space-y-4 animate-in fade-in duration-300 w-full">
       
-      {/* Settings Header */}
-      <div className="bg-[#111114] border border-zinc-800/80 rounded-xl p-4 shadow-xl">
-        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-800/60">
-          <div className="p-1.5 bg-blue-500/10 text-blue-400 rounded-lg">
-            <Settings2 className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-[13px] font-semibold text-white">Resource Visibility Settings</h2>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Toggle which resources appear in the main control panel.</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between mb-2">
+        <FilterBar
+          showLabel={true}
+          className="flex flex-wrap items-center gap-4"
+          filters={[
+            { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v }), options: groupOptions, width: "max-w-[150px]" }
+          ]}
+        />
 
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <FilterBar
-            showLabel={true}
-            className="flex flex-wrap items-center gap-4"
-            filters={[
-              { label: "Group:", value: filter.group, onChange: v => setFilter({ ...filter, group: v }), options: groupOptions, width: "max-w-[150px]" }
-            ]}
-          />
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
-              <input
-                type="text"
-                placeholder="Search resources..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-[#1e1e24] border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search resources..."
+              className="w-full pl-9 pr-3 py-1.5 bg-[#1e1e24] border border-zinc-800 rounded-lg text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
+            />
           </div>
         </div>
       </div>

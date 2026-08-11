@@ -135,7 +135,7 @@ export function ChangesTab({ topFilters, setTopFilters, provider, account }) {
                     <span className={`w-2 h-2 rounded-full ${c.change_type === 'created' ? 'bg-green-400' : c.change_type === 'deleted' ? 'bg-red-400' : 'bg-amber-400'}`} />
                     <div>
                       <span className="text-xs text-zinc-200">{formatIdentifier(c.native_id, provider)}</span>
-                      <div className="text-[10px] text-zinc-500">{formatType(c.resource_type, provider)} • {c.region || 'Unknown'}</div>
+                      <div className="text-[10px] text-zinc-500">{formatType(c.resource_type, provider, c.native_id)} • {c.region || 'Unknown'}</div>
                     </div>
                   </div>
                   <div className="text-right">

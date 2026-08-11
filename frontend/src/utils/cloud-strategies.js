@@ -10,8 +10,22 @@ export const CloudStrategies = {
       if (!resourceType) return 'UNKNOWN';
       return resourceType.split(':')[0].toUpperCase();
     },
-    formatType: (rawType) => {
-      if (!rawType) return 'Unknown';
+    formatType: (rawType, nativeId) => {
+      if (!rawType || rawType === 'Unknown') {
+        if (nativeId && nativeId.startsWith('arn:aws:')) {
+          const parts = nativeId.split(':');
+          if (parts.length >= 6) {
+            const service = parts[2].toUpperCase();
+            const resourcePart = parts[5];
+            if (resourcePart && resourcePart.includes('/')) {
+              const rType = resourcePart.split('/')[0];
+              return `${service} ${rType.charAt(0).toUpperCase() + rType.slice(1)}`;
+            }
+            return `${service} Resource`;
+          }
+        }
+        return 'Unknown';
+      }
       if (rawType.includes('::')) return rawType.split('::').pop();
       const parts = rawType.split(':');
       if (parts.length > 1) {

@@ -35,12 +35,12 @@ export function OverviewTab({ summary, dynamicTypes, dynamicRegions, selectedAcc
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-2.5">
-        <Kpi label="Total Active" value={summary?.total || 0} />
-        <Kpi label="Billable" value={summary?.billable || 0} color="text-blue-400" />
-        <Kpi label="Non-Billable" value={summary?.non_billable || 0} color="text-zinc-400" />
-        <Kpi label="New Today" value={summary?.new_today || 0} color="text-green-400" icon={<Plus className="h-3 w-3" />} onClick={() => onKpiClick && onKpiClick('new')} />
-        <Kpi label="Deleted Today" value={summary?.deleted_today || 0} color="text-red-400" icon={<Minus className="h-3 w-3" />} onClick={() => onKpiClick && onKpiClick('deleted')} />
-        <Kpi label="Regions" value={(summary?.region_breakdown || []).length} color="text-cyan-400" icon={<Globe className="h-3 w-3" />} />
+        <Kpi label="Total Active" value={summary?.total || 0} subtext="all tracked resources" />
+        <Kpi label="Billable" value={summary?.billable || 0} color="text-blue-400" subtext={summary?.total ? `${((summary?.billable / summary?.total) * 100).toFixed(1)}% of total` : '0%'} />
+        <Kpi label="Non-Billable" value={summary?.non_billable || 0} color="text-zinc-400" subtext={summary?.total ? `${((summary?.non_billable / summary?.total) * 100).toFixed(1)}% of total` : '0%'} />
+        <Kpi label="New Today" value={summary?.new_today || 0} color="text-green-400" subtextColor="text-green-500/80" subtext="in past 24h" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => onKpiClick && onKpiClick('new')} />
+        <Kpi label="Deleted Today" value={summary?.deleted_today || 0} color="text-red-400" subtextColor="text-red-500/80" subtext="in past 24h" icon={<Minus className="h-3.5 w-3.5" />} onClick={() => onKpiClick && onKpiClick('deleted')} />
+        <Kpi label="Regions" value={(summary?.region_breakdown || []).length} color="text-cyan-400" subtext="active locations" icon={<Globe className="h-3.5 w-3.5" />} />
       </div>
 
       <div className="grid grid-cols-4 gap-4">

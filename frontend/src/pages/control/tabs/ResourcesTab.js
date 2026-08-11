@@ -11,6 +11,7 @@ import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 import { buildResourceTree } from '../../../utils/resource-tree';
 import { ResourceTableRow } from './components/ResourceTableRow';
 import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
+import { useResourcePolling } from '../../../hooks/useResourcePolling';
 
 export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger }) {
   const [resources, setResources] = useState([]);
@@ -110,49 +111,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   }, [loading, hasMore, offset, topFilters]);
 
   // Real-Time Polling Engine
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const transitioningResources = resources.filter(r =>
-        !['RUNNING', 'STOPPED', 'UNKNOWN', 'TERMINATED', 'ACTIVE', 'AVAILABLE'].includes(r.status.toUpperCase())
-      );
-  
-      if (transitioningResources.length === 0) return;
-  
-      transitioningResources.forEach(async (r) => {
-        try {
-          const liveData = await getDbState(r.resource_id);
-  
-          if (liveData.status && liveData.status.toUpperCase() !== r.status.toUpperCase()) {
-            const newState = liveData.status.toUpperCase();
-            const oldState = r.status.toUpperCase();
-  
-            if (oldState === 'STOPPING' && newState === 'RUNNING') return;
-            if (oldState === 'STARTING' && newState === 'STOPPED') return;
-  
-            if (oldState !== 'RUNNING' && newState === 'RUNNING') {
-              toast.success(`Resource ${r.name || r.resource_id} is completely ON!`);
-            } else if (oldState !== 'STOPPED' && newState === 'STOPPED' && newState !== 'TERMINATED') {
-              toast.success(`Resource ${r.name || r.resource_id} is completely OFF!`);
-            }
-  
-            setResources(prev => prev.map(res =>
-              res.resource_id === r.resource_id ? { ...res, status: newState } : res
-            ));
-          }
-        } catch (e) {
-          console.error(`Failed to poll state for ${r.resource_id}`, e);
-          if (e.response && e.response.status === 404) {
-             setResources(prev => prev.map(res =>
-               res.resource_id === r.resource_id ? { ...res, status: 'TERMINATED' } : res
-             ));
-          }
-        }
-      });
-    }, 10000);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resources]);
+  useResourcePolling(resources, setResources);
 
   const handleModalConfirm = async ({ mode, resource, automationEnabled, schedulePattern, ownerEmail, startTime, stopTime, timezone }) => {
     try {
@@ -202,7 +161,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           }
           return r;
         }));
-        
+
         if (toggleRes && toggleRes.saved_config_json) {
           try {
             const configData = JSON.parse(toggleRes.saved_config_json);
@@ -221,7 +180,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
                 return r;
               }));
             }
-          } catch(e) {}
+          } catch (e) { }
         }
 
         toast.success(`Resource is now ${optimisticState.toLowerCase()}`);
@@ -266,8 +225,8 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
     const typeMatch = filter.type === 'All' || (r.service_type || '').toUpperCase() === filter.type;
     const stateMatch = filter.powerState === 'All' || r.status === filter.powerState;
     const searchMatch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.resource_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+      r.resource_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.account_name.toLowerCase().includes(searchQuery.toLowerCase());
     return groupMatch && typeMatch && stateMatch && searchMatch;
   };
 
@@ -287,7 +246,10 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   const filteredResources = resources.filter(r => {
     if (!isGroupView) {
-      const isParentCluster = !r.parent_resource_id && ['EKS', 'ECS'].includes((r.service_type || '').toUpperCase());
+      // DYNAMIC: A resource is a parent container if it has no parent itself, 
+      // AND there is at least one other resource that claims it as a parent.
+      // (Backend eager-loads families, so children are guaranteed to be in the array).
+      const isParentCluster = !r.parent_resource_id && resources.some(child => child.parent_resource_id === r.resource_id);
       if (isParentCluster) return false;
       return directlyMatchedIds.has(r.resource_id);
     }
@@ -336,7 +298,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
         />
 
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={toggleGroupView}
             title={isGroupView ? "Switch to Flat View" : "Switch to Group View"}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${isGroupView ? 'bg-blue-600/10 text-blue-400 border-blue-600/20' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'}`}
@@ -371,19 +333,19 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
             data={treeData}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full text-left text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-20 text-zinc-400 uppercase text-[10px]" />),
-              TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors" />,
+              Table: (props) => <table {...props} className="w-full text-left text-[11px]" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-40 bg-[#111114]" />),
+              TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/60 text-zinc-300" />),
             }}
             fixedHeaderContent={() => (
-              <tr className="bg-[#0a0a0f]">
-                <th className="p-4 w-[30%] bg-[#111114] rounded-tl-xl border-b border-[#1f1f24]">Resource Name</th>
-                <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Service</th>
-                <th className="p-4 w-[10%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
-                <th className="p-4 w-[15%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
-                <th className="p-4 w-[20%] bg-[#111114] border-b border-[#1f1f24] whitespace-nowrap">Automated Schedule</th>
-                <th className="p-4 w-[15%] text-right bg-[#111114] rounded-tr-xl border-b border-[#1f1f24]">Actions</th>
+              <tr className="bg-[#111114]">
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[30%] bg-[#111114] border-b border-[#1f1f24]">Resource Name</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Service</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[12%] bg-[#111114] border-b border-[#1f1f24]">Status</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[18%] bg-[#111114] border-b border-[#1f1f24] whitespace-nowrap">Automated Schedule</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%] bg-[#111114] border-b border-[#1f1f24]">Actions</th>
               </tr>
             )}
             itemContent={(index, r) => (
