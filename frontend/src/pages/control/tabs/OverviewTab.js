@@ -1,38 +1,41 @@
 import React from 'react';
 import { Power, Clock, Server } from 'lucide-react';
+import { Kpi } from '../../../components/ui/Kpi';
 
 export function OverviewTab({ totalCount, runningCount, stoppedCount, activeSchedulesCount }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Total Resources</span>
-            <span className="text-2xl font-bold text-zinc-200 mt-1 block">{totalCount}</span>
-          </div>
-          <div className="p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl"><Server className="h-5 w-5 text-zinc-400"/></div>
-        </div>
-        <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Running Workloads</span>
-            <span className="text-2xl font-bold text-green-400 mt-1 block">{runningCount}</span>
-          </div>
-          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl"><Power className="h-5 w-5 text-green-400"/></div>
-        </div>
-        <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Stopped Workloads</span>
-            <span className="text-2xl font-bold text-amber-400 mt-1 block">{stoppedCount}</span>
-          </div>
-          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl"><Power className="h-5 w-5 text-amber-400"/></div>
-        </div>
-        <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider block">Automated Schedules</span>
-            <span className="text-2xl font-bold text-blue-400 mt-1 block">{activeSchedulesCount} Active</span>
-          </div>
-          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl"><Clock className="h-5 w-5 text-blue-400"/></div>
-        </div>
+        <Kpi 
+          label="Total Resources" 
+          value={totalCount} 
+          icon={<Server className="h-4 w-4" />} 
+          subtext="all managed instances"
+        />
+        <Kpi 
+          label="Running Workloads" 
+          value={runningCount} 
+          color="text-green-400"
+          icon={<Power className="h-4 w-4" />} 
+          subtextColor="text-green-500/80"
+          subtext={totalCount ? `${((runningCount / totalCount) * 100).toFixed(1)}% of total` : '0%'}
+        />
+        <Kpi 
+          label="Stopped Workloads" 
+          value={stoppedCount} 
+          color="text-amber-400"
+          icon={<Power className="h-4 w-4" />} 
+          subtextColor="text-amber-500/80"
+          subtext={totalCount ? `${((stoppedCount / totalCount) * 100).toFixed(1)}% of total` : '0%'}
+        />
+        <Kpi 
+          label="Automated Schedules" 
+          value={`${activeSchedulesCount} Active`} 
+          color="text-blue-400"
+          icon={<Clock className="h-4 w-4" />} 
+          subtextColor="text-blue-500/80"
+          subtext="currently managed"
+        />
       </div>
       
       {/* Placeholder for future charting or heatmap similar to reference UX */}

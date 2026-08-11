@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Server, Database, Clock, Eye, EyeOff } from 'lucide-react';
 
-export const ResourceTableRow = ({
+export const ResourceTableRow = React.memo(({
   r,
   isGroupView,
   toggleRow,
@@ -50,7 +50,7 @@ export const ResourceTableRow = ({
         </div>
       </td>
       <td className="p-4 text-[13px] text-zinc-400 font-medium uppercase">{r.service_type}</td>
-      <td className="p-4 text-[13px] text-zinc-400 font-medium">{r.region}</td>
+      <td className="p-4 text-[13px] text-zinc-400 font-medium whitespace-nowrap">{r.region}</td>
       <td className="p-4 flex flex-col items-start gap-1 justify-center min-h-[50px]">
         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getStatusStyle(r.status)}`}>
           {r.status}
@@ -81,11 +81,10 @@ export const ResourceTableRow = ({
           {isSettingsMode ? (
             <button
               onClick={() => handleToggle(r)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${
-                r.is_visible 
-                  ? 'bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 hover:bg-zinc-700' 
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${r.is_visible
+                  ? 'bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 hover:bg-zinc-700'
                   : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-400'
-              }`}
+                }`}
             >
               {r.is_visible ? (
                 <><Eye className="h-3 w-3" /> Visible</>
@@ -107,8 +106,8 @@ export const ResourceTableRow = ({
                   disabled={isAsgManaged}
                   title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
-                      ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
-                      : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
+                    ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                    : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
                     }`}
                 >
                   {isScaleToZero ? 'SCALE TO ZERO' : 'STOP'}
@@ -119,8 +118,8 @@ export const ResourceTableRow = ({
                   disabled={isAsgManaged}
                   title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
-                      ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
-                      : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
+                    ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                    : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
                     }`}
                 >
                   START
@@ -128,7 +127,7 @@ export const ResourceTableRow = ({
               )}
             </>
           ) : (
-            <span 
+            <span
               className="px-2.5 py-1 text-[10px] font-medium text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded cursor-help whitespace-nowrap"
               title="This is a structural parent container. Expand this row to schedule or control its underlying compute resources."
             >
@@ -139,4 +138,4 @@ export const ResourceTableRow = ({
       </td>
     </>
   );
-};
+});

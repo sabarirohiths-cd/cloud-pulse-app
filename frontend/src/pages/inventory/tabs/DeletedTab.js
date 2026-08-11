@@ -126,7 +126,7 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
         ]}
       />
 
-      <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl">
+      <div className="bg-[#111114] border border-[#1f1f24] rounded-xl [overflow:clip]">
         {(resources.length === 0 && (loading || (offset === 0 && hasMore))) ? (
           <div className="h-[600px] w-full">
             <TableSkeleton />
@@ -139,17 +139,17 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
             endReached={loadMore}
             components={{
               Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
-              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-zinc-900/80 backdrop-blur-md z-20 shadow-sm border-b border-zinc-800/50" />),
+              TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-40 bg-[#111114]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),
             }}
             fixedHeaderContent={() => (
-              <tr>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%]">Identifier</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%]">Type</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%]">Region</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Deleted At</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%]">Actions</th>
+              <tr className="bg-[#111114]">
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[40%] bg-[#111114] border-b border-[#1f1f24]">Identifier</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[25%] bg-[#111114] border-b border-[#1f1f24]">Type</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[15%] bg-[#111114] border-b border-[#1f1f24]">Region</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Deleted At</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase w-[10%] bg-[#111114] border-b border-[#1f1f24]">Actions</th>
               </tr>
             )}
             itemContent={(index, r) => (
