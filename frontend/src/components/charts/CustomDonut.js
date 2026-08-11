@@ -11,7 +11,7 @@ const renderActiveShape = (props) => {
   );
 };
 
-export function CustomDonut({ data, colors, onSliceClick, isAnimationActive = true }) {
+export function CustomDonut({ data, colors, onSliceClick, isAnimationActive = true, height = 140, innerRadius = 35, outerRadius = 55 }) {
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const activeItem = activeIndex >= 0 ? data[activeIndex] : null;
 
@@ -34,11 +34,11 @@ export function CustomDonut({ data, colors, onSliceClick, isAnimationActive = tr
           Total
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={140}>
+      <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie
             data={data}
-            cx="50%" cy="50%" innerRadius={35} outerRadius={55}
+            cx="50%" cy="50%" innerRadius={innerRadius} outerRadius={outerRadius}
             dataKey="value" paddingAngle={2} strokeWidth={0}
             activeIndex={activeIndex}
             activeShape={renderActiveShape}

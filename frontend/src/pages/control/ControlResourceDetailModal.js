@@ -13,6 +13,14 @@ export function ControlResourceDetailModal({ resource, onClose }) {
     if (resource.tags_json) tags = typeof resource.tags_json === 'string' ? JSON.parse(resource.tags_json) : resource.tags_json;
   } catch (e) {}
 
+  const getStatusStyle = (status) => {
+    const s = (status || '').toUpperCase();
+    if (s === 'RUNNING' || s === 'AVAILABLE') return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]';
+    if (s === 'STOPPED' || s === 'PAUSED') return 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]';
+    if (s === 'UNKNOWN') return 'bg-zinc-500 shadow-[0_0_8px_rgba(113,113,122,0.4)]';
+    return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]';
+  };
+
   return createPortal(
     <AnimatePresence>
       {resource && (
@@ -70,7 +78,7 @@ export function ControlResourceDetailModal({ resource, onClose }) {
             <div className="bg-[#161b22] p-3 rounded-xl border border-[#26262b] shadow-sm">
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1 block">Status</label>
               <p className="text-[12px] font-bold text-zinc-200 flex items-center gap-1.5">
-                <span className={`inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]`} />
+                <span className={`inline-block w-2 h-2 rounded-full ${getStatusStyle(resource.status)}`} />
                 {resource.status}
               </p>
             </div>

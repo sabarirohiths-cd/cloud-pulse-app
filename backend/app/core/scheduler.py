@@ -9,6 +9,7 @@ from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
 from app.services.notifier import notifier_service
+from app.services.action_logger import log_control_action
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -147,30 +148,30 @@ async def evaluate_resource(session, sched: ControlResource):
                 
                 if old_status in ["STARTING", "PENDING"] and is_live_running:
                     action_type = config_data.get('last_action', 'SCHEDULE START')
-                    log_entry = ControlActionLog(
+                    log_control_action(
+                        session=session,
                         native_id=sched.resource_id,
-                        resource_name=sched.resource_name,
-                        resource_type=sched.service_type,
                         account_name=sched.account_name,
                         provider=sched.cloud_provider,
                         action_type=action_type,
                         status="SUCCESS",
-                        details="Resource started successfully."
+                        details="Resource started successfully.",
+                        resource_name=sched.resource_name,
+                        resource_type=sched.service_type
                     )
-                    session.add(log_entry)
                 elif old_status in ["STOPPING", "SHUTTING-DOWN"] and is_live_stopped:
                     action_type = config_data.get('last_action', 'SCHEDULE STOP')
-                    log_entry = ControlActionLog(
+                    log_control_action(
+                        session=session,
                         native_id=sched.resource_id,
-                        resource_name=sched.resource_name,
-                        resource_type=sched.service_type,
                         account_name=sched.account_name,
                         provider=sched.cloud_provider,
                         action_type=action_type,
                         status="SUCCESS",
-                        details="Resource stopped successfully."
+                        details="Resource stopped successfully.",
+                        resource_name=sched.resource_name,
+                        resource_type=sched.service_type
                     )
-                    session.add(log_entry)
                     
                 await session.commit()
 

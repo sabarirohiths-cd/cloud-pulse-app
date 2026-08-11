@@ -95,4 +95,20 @@ class ControlExecutionRouter:
         else:
             raise NotImplementedError(f"Sync operations for {provider} are planned for a future release.")
 
+    def validate_resource_hierarchy(self, resource) -> tuple[bool, str]:
+        """
+        Validates if a resource can be manually controlled based on its hierarchy.
+        Returns (is_valid, error_message)
+        """
+        if resource and getattr(resource, 'parent_resource_id', None):
+            is_ecs_service = (resource.service_type == 'ECS')
+            is_eks_nodegroup = (resource.service_type == 'EKS' and resource.resource_id != resource.parent_resource_id)
+            is_unmanaged_eks_asg = (resource.service_type == 'ASG' and resource.instance_spec and 'EKS (Unmanaged)' in resource.instance_spec)
+            is_beanstalk_env = (resource.service_type == 'BEANSTALK')
+            
+            if not (is_ecs_service or is_eks_nodegroup or is_unmanaged_eks_asg or is_beanstalk_env):
+                return False, f"Resource is natively managed by {resource.parent_resource_id}. Please control the parent instead."
+        
+        return True, ""
+
 control_service = ControlExecutionRouter()

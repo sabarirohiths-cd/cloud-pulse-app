@@ -135,7 +135,7 @@ export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, d
             data={resources}
             endReached={loadMore}
             components={{
-              Table: (props) => <table {...props} className="w-full" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
+              Table: (props) => <table {...props} className="w-full text-left text-[11px]" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }} />,
               TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-40 bg-[#111114]" />),
               TableRow: (props) => <tr {...props} className="hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/20 last:border-0" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-zinc-800/30" />),

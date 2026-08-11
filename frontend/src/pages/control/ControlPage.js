@@ -14,7 +14,7 @@ import { NotificationBell } from '../../components/ui/NotificationBell';
 
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('pulse_control_active_tab') || 'overview');
-  const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, active_schedules_count: 0 });
+  const [summary, setSummary] = useState({ total_count: 0, running_count: 0, stopped_count: 0, terminated_count: 0, active_schedules_count: 0 });
   const [syncRefreshTrigger, setSyncRefreshTrigger] = useState(0);
   const [loadingSummary, setLoadingSummary] = useState(false);
   // Global filters mimicking the reference UI
@@ -212,45 +212,52 @@ export default function ControlPage() {
           ]}
         />
 
-        {/* Main Global Tab Bar */}
-        <div className="border-b border-zinc-800 flex gap-6">
-          {['overview', 'activity', 'resources', 'settings'].map(t => (
-            <button
-              key={t}
-              onClick={() => {
-                setActiveTab(t);
-                localStorage.setItem('pulse_control_active_tab', t);
-              }}
-              className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${activeTab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {/* Tabs and Content Group */}
+        <div>
+          {/* Main Global Tab Bar */}
+          <div className="border-b border-zinc-800 flex gap-6">
+            {['overview', 'activity', 'resources', 'settings'].map(t => (
+              <button
+                key={t}
+                onClick={() => {
+                  setActiveTab(t);
+                  localStorage.setItem('pulse_control_active_tab', t);
+                }}
+                className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${activeTab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
 
-        {/* Tab Content */}
-        <div className="pt-2">
-          {activeTab === 'overview' && (
-            <OverviewTab
-              totalCount={summary.total_count}
-              runningCount={summary.running_count}
-              stoppedCount={summary.stopped_count}
-              activeSchedulesCount={summary.active_schedules_count}
-            />
-          )}
-          {activeTab === 'activity' && <ActivityLogTab topFilters={topFilters} />}
-          {activeTab === 'resources' && (
-            <ResourcesTab
-              topFilters={topFilters}
-              onActionLogged={loadLogs}
-              syncRefreshTrigger={syncRefreshTrigger}
-            />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsTab
-              topFilters={topFilters}
-            />
-          )}
+          {/* Tab Content */}
+          <div className="pt-4">
+            {activeTab === 'overview' && (
+              <OverviewTab 
+                totalCount={summary.total_count} 
+                runningCount={summary.running_count} 
+                stoppedCount={summary.stopped_count} 
+                terminatedCount={summary.terminated_count}
+                activeSchedulesCount={summary.active_schedules_count}
+                typeBreakdown={summary.type_breakdown}
+                regionBreakdown={summary.region_breakdown}
+                topFilters={topFilters}
+              />
+            )}
+            {activeTab === 'activity' && <ActivityLogTab topFilters={topFilters} />}
+            {activeTab === 'resources' && (
+              <ResourcesTab
+                topFilters={topFilters}
+                onActionLogged={loadLogs}
+                syncRefreshTrigger={syncRefreshTrigger}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsTab
+                topFilters={topFilters}
+              />
+            )}
+          </div>
         </div>
 
         {activeTab !== 'overview' && <ScrollToTopButton />}

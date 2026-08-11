@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
+from app.services.action_logger import log_control_action
 from app.repositories.control_repository import control_repository
 from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
 from app.monitoring.state_monitor import route_transition
@@ -83,17 +84,17 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
     await db.commit()
     
     # Log schedule update
-    log_entry = ControlActionLog(
+    log_control_action(
+        session=db,
         native_id=payload.resource_id,
-        resource_name=sched.resource_name,
-        resource_type=sched.service_type if sched else None,
         account_name=payload.account_name,
         provider=sched.cloud_provider,
         action_type="SCHEDULE_UPDATED",
         status="SUCCESS",
-        details=f"Automation {'enabled' if payload.is_automation_enabled else 'disabled'}. Times: {payload.start_time} - {payload.stop_time} ({payload.timezone})"
+        details=f"Automation {'enabled' if payload.is_automation_enabled else 'disabled'}. Times: {payload.start_time} - {payload.stop_time} ({payload.timezone})",
+        resource_name=sched.resource_name,
+        resource_type=sched.service_type if sched else None
     )
-    db.add(log_entry)
     await db.commit()
     
     return {"status": "success", "message": "Schedule updated successfully"}
@@ -114,19 +115,10 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
         sched_res = await db.execute(sched_stmt)
         sched = sched_res.scalars().first()
         
-        # Block manual actions on resources managed by a parent (e.g., EC2 managed by ASG, ASG managed by ECS Cluster)
-        # Exceptions:
-        # 1. ECS Services belong to a Cluster (parent), but the Service itself IS the unit of control.
-        # 2. EKS Node Groups belong to an EKS Cluster, but the Node Group IS the unit of control.
-        # 3. ASGs that are direct children of an EKS cluster (Unmanaged EKS ASGs).
-        if sched and sched.parent_resource_id:
-            is_ecs_service = (sched.service_type == 'ECS')
-            is_eks_nodegroup = (sched.service_type == 'EKS' and sched.resource_id != sched.parent_resource_id)
-            is_unmanaged_eks_asg = (sched.service_type == 'ASG' and sched.instance_spec and 'EKS (Unmanaged)' in sched.instance_spec)
-            is_beanstalk_env = (sched.service_type == 'BEANSTALK')
-            
-            if not (is_ecs_service or is_eks_nodegroup or is_unmanaged_eks_asg or is_beanstalk_env):
-                raise HTTPException(status_code=400, detail=f"Resource is natively managed by {sched.parent_resource_id}. Please control the parent instead.")
+        # Block manual actions on resources natively managed by a parent
+        is_valid, err_msg = control_service.validate_resource_hierarchy(sched)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=err_msg)
 
         saved_config = sched.saved_config_json if sched else None
 
@@ -144,17 +136,17 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
             sched_res = await db.execute(sched_stmt)
             sched = sched_res.scalars().first()
             
-            log = ControlActionLog(
+            log_control_action(
+                session=db,
                 native_id=payload.resource_id,
-                resource_name=sched.resource_name if sched else payload.resource_id,
-                resource_type=sched.service_type if sched else payload.service_type,
                 account_name=payload.account_name,
                 provider=config.provider,
                 action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
                 status="FAILED",
-                details=str(res.get("details", res.get("message", "")))
+                details=str(res.get("details", res.get("message", ""))),
+                resource_name=sched.resource_name if sched else payload.resource_id,
+                resource_type=sched.service_type if sched else payload.service_type
             )
-            db.add(log)
             await db.commit()
             
             raise HTTPException(status_code=400, detail=res.get("message"))
@@ -203,17 +195,17 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
             
         return res
     except Exception as e:
-        log_entry = ControlActionLog(
+        log_control_action(
+            session=db,
             native_id=payload.resource_id,
-            resource_name=payload.resource_id,
-            resource_type=payload.service_type,
             account_name=payload.account_name,
             provider=config.provider,
             action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
             status="FAILED",
-            details=str(getattr(e, 'detail', str(e)))
+            details=str(getattr(e, 'detail', str(e))),
+            resource_name=sched.resource_name if sched else payload.resource_id,
+            resource_type=sched.service_type if sched else payload.service_type
         )
-        db.add(log_entry)
         await db.commit()
         raise e
 
@@ -274,17 +266,17 @@ async def log_action(payload: LogActionPayload, db: AsyncSession = Depends(get_d
     sched_res = await db.execute(sched_stmt)
     sched = sched_res.scalars().first()
     
-    log = ControlActionLog(
+    log_control_action(
+        session=db,
         native_id=payload.resource_id,
-        resource_name=sched.resource_name if sched else payload.resource_id,
-        resource_type=sched.service_type if sched else None,
         account_name=payload.account_name,
         provider=provider,
         action_type=payload.action_type,
         status=payload.status,
-        details=payload.details
+        details=payload.details,
+        resource_name=sched.resource_name if sched else payload.resource_id,
+        resource_type=sched.service_type if sched else None
     )
-    db.add(log)
     await db.commit()
     return {"status": "success"}
 
@@ -401,17 +393,17 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                             db.add(sched)
                         
                             # Log the discovery
-                            log_entry = ControlActionLog(
-                                native_id=sched.resource_id,
-                                resource_name=sched.resource_name,
-                                resource_type=sched.service_type,
-                                account_name=sched.account_name,
-                                provider=sched.cloud_provider,
-                                action_type="DISCOVERED",
+                            log_control_action(
+                                session=db,
+                                native_id=r.resource_id,
+                                account_name=config.account_name,
+                                provider=config.provider,
+                                action_type="AUTO DISCOVERY",
                                 status="SUCCESS",
-                                details="Resource newly discovered during sync."
+                                details="Resource auto-discovered and added",
+                                resource_name=r.resource_name,
+                                resource_type=r.service_type
                             )
-                            db.add(log_entry)
                         
                             from app.models.system.system_notification import SystemNotification
                             notification = SystemNotification(
@@ -579,30 +571,30 @@ async def get_live_state(
             
             if old_status in ["STARTING", "PENDING"] and state in ["RUNNING", "AVAILABLE"]:
                 action_type = config_data.get('last_action', 'POWER_ON')
-                log_entry = ControlActionLog(
+                log_control_action(
+                    session=db,
                     native_id=sched.resource_id,
-                    resource_name=sched.resource_name,
-                    resource_type=sched.service_type,
                     account_name=sched.account_name,
                     provider=sched.cloud_provider,
                     action_type=action_type,
                     status="SUCCESS",
-                    details="Resource started successfully."
+                    details="Resource started successfully.",
+                    resource_name=sched.resource_name,
+                    resource_type=sched.service_type
                 )
-                db.add(log_entry)
             elif old_status in ["STOPPING", "SHUTTING-DOWN"] and state in ["STOPPED", "PAUSED"]:
                 action_type = config_data.get('last_action', 'POWER_OFF')
-                log_entry = ControlActionLog(
+                log_control_action(
+                    session=db,
                     native_id=sched.resource_id,
-                    resource_name=sched.resource_name,
-                    resource_type=sched.service_type,
                     account_name=sched.account_name,
                     provider=sched.cloud_provider,
                     action_type=action_type,
                     status="SUCCESS",
-                    details="Resource stopped successfully."
+                    details="Resource stopped successfully.",
+                    resource_name=sched.resource_name,
+                    resource_type=sched.service_type
                 )
-                db.add(log_entry)
                 
             await db.commit()
     return {"resource_id": resource_id, "status": state}

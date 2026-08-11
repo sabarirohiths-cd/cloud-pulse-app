@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.control.control_resource import ControlResource, ServiceType, ControlType
 from app.models.control.control_action_log import ControlActionLog
+from app.services.action_logger import log_control_action
 from app.models.system.system_notification import SystemNotification
 
 logger = logging.getLogger(__name__)
@@ -120,17 +121,17 @@ async def discover_and_upsert_child_ec2(
                     session.add(new_res)
                     
                     # Log the dynamic discovery
-                    log_entry = ControlActionLog(
+                    log_control_action(
+                        session=session,
                         native_id=inst_id,
-                        resource_name=name,
-                        resource_type=new_res.service_type.value,
                         account_name=account_name,
                         provider="aws",
                         action_type="DISCOVERED",
                         status="SUCCESS",
-                        details=f"Child resource dynamically discovered via {parent_service_type} scaling."
+                        details=f"Child resource dynamically discovered via {parent_service_type} scaling.",
+                        resource_name=name,
+                        resource_type=new_res.service_type.value
                     )
-                    session.add(log_entry)
                     
                     notification = SystemNotification(
                         title="New Resource Discovered",

@@ -33,6 +33,34 @@ class ControlResourceHandler(ABC):
         if key not in cls._error_cache:
             cls._error_cache.add(key)
             logging.warning(f"[{service_name}] {error_message}")
+
+    def _run_with_error_handling(self, func, error_return_type: str, success_return: Any, *args, **kwargs):
+        """Standardized try-catch wrapper for AWS execution methods."""
+        try:
+            res = func(*args, **kwargs)
+            if callable(success_return):
+                return success_return(res)
+            return success_return if success_return is not None else res
+        except ClientError as e:
+            err_msg = parse_aws_client_error(e)
+            if error_return_type == "list":
+                self.log_once(self.__class__.__name__, err_msg)
+                return []
+            elif error_return_type == "state":
+                logging.error(f"Error in {self.__class__.__name__}: {err_msg}")
+                return "error"
+            else:
+                return {"status": "error", "message": err_msg}
+        except Exception as e:
+            err_msg = str(e)
+            if error_return_type == "list":
+                self.log_once(self.__class__.__name__, err_msg)
+                return []
+            elif error_return_type == "state":
+                logging.error(f"Unexpected error in {self.__class__.__name__}: {err_msg}")
+                return "error"
+            else:
+                return {"status": "error", "message": err_msg}
             
     @abstractmethod
     def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
@@ -62,24 +90,13 @@ class BaseDirectPowerHandler(ControlResourceHandler):
     async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
         def _scan():
             session = session_manager.create_session(credentials, region)
-            try:
-                return self._execute_scan_region(session, region)
-            except Exception as e:
-                self.log_once(self.__class__.__name__, parse_aws_client_error(e))
-                return []
+            return self._run_with_error_handling(self._execute_scan_region, "list", None, session, region)
         return await asyncio.to_thread(_scan)
 
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
         def _get():
             session = session_manager.create_session(credentials, region)
-            try:
-                return self._execute_get_state(session, native_id, **kwargs)
-            except ClientError as e:
-                logging.error(f"Error getting state for {native_id}: {parse_aws_client_error(e)}")
-                return "error"
-            except Exception as e:
-                logging.error(f"Unexpected error in get_state for {native_id}: {e}")
-                return "error"
+            return self._run_with_error_handling(self._execute_get_state, "state", None, session, native_id, **kwargs)
         return await asyncio.to_thread(_get)
 
     async def start(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -89,13 +106,8 @@ class BaseDirectPowerHandler(ControlResourceHandler):
             
         def _start():
             session = session_manager.create_session(credentials, region)
-            try:
-                self._execute_start(session, native_id, **kwargs)
-                return {"status": "success", "action": "START", "resource_id": native_id, "message": "Successfully initiated START sequence."}
-            except ClientError as e:
-                return {"status": "error", "message": parse_aws_client_error(e)}
-            except Exception as e:
-                return {"status": "error", "message": str(e)}
+            success = {"status": "success", "action": "START", "resource_id": native_id, "message": "Successfully initiated START sequence."}
+            return self._run_with_error_handling(self._execute_start, "dict", success, session, native_id, **kwargs)
         return await asyncio.to_thread(_start)
 
     async def stop(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -105,13 +117,8 @@ class BaseDirectPowerHandler(ControlResourceHandler):
             
         def _stop():
             session = session_manager.create_session(credentials, region)
-            try:
-                self._execute_stop(session, native_id, **kwargs)
-                return {"status": "success", "action": "STOP", "resource_id": native_id, "message": "Successfully initiated STOP sequence."}
-            except ClientError as e:
-                return {"status": "error", "message": parse_aws_client_error(e)}
-            except Exception as e:
-                return {"status": "error", "message": str(e)}
+            success = {"status": "success", "action": "STOP", "resource_id": native_id, "message": "Successfully initiated STOP sequence."}
+            return self._run_with_error_handling(self._execute_stop, "dict", success, session, native_id, **kwargs)
         return await asyncio.to_thread(_stop)
 
     @abstractmethod
@@ -134,24 +141,13 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
     async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
         def _scan():
             session = session_manager.create_session(credentials, region)
-            try:
-                return self._execute_scan_region(session, region)
-            except Exception as e:
-                self.log_once(self.__class__.__name__, parse_aws_client_error(e))
-                return []
+            return self._run_with_error_handling(self._execute_scan_region, "list", None, session, region)
         return await asyncio.to_thread(_scan)
 
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
         def _get():
             session = session_manager.create_session(credentials, region)
-            try:
-                return self._execute_get_state(session, native_id, **kwargs)
-            except ClientError as e:
-                logging.error(f"Error getting state for {native_id}: {parse_aws_client_error(e)}")
-                return "error"
-            except Exception as e:
-                logging.error(f"Unexpected error in get_state for {native_id}: {e}")
-                return "error"
+            return self._run_with_error_handling(self._execute_get_state, "state", None, session, native_id, **kwargs)
         return await asyncio.to_thread(_get)
 
     async def start(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -161,13 +157,8 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
             
         def _start():
             session = session_manager.create_session(credentials, region)
-            try:
-                self._execute_start(session, native_id, saved_config, **kwargs)
-                return {"status": "success", "action": "START", "resource_id": native_id, "message": "Successfully initiated SCALE_TO_ORIGINAL sequence."}
-            except ClientError as e:
-                return {"status": "error", "message": parse_aws_client_error(e)}
-            except Exception as e:
-                return {"status": "error", "message": str(e)}
+            success = {"status": "success", "action": "START", "resource_id": native_id, "message": "Successfully initiated SCALE_TO_ORIGINAL sequence."}
+            return self._run_with_error_handling(self._execute_start, "dict", success, session, native_id, saved_config, **kwargs)
         return await asyncio.to_thread(_start)
 
     async def stop(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -177,16 +168,12 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
             
         def _stop():
             session = session_manager.create_session(credentials, region)
-            try:
-                new_saved_config = self._execute_stop(session, native_id, **kwargs)
+            def success_fn(new_saved_config):
                 res = {"status": "success", "action": "STOP", "resource_id": native_id, "message": "Successfully initiated SCALE_TO_ZERO sequence."}
                 if new_saved_config:
                     res["saved_config_json"] = new_saved_config
                 return res
-            except ClientError as e:
-                return {"status": "error", "message": parse_aws_client_error(e)}
-            except Exception as e:
-                return {"status": "error", "message": str(e)}
+            return self._run_with_error_handling(self._execute_stop, "dict", success_fn, session, native_id, **kwargs)
         return await asyncio.to_thread(_stop)
 
     @abstractmethod

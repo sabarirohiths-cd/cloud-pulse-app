@@ -325,55 +325,60 @@ export default function InventoryPage() {
           availableTags={filterOptions.availableTags}
         />
 
-        <div className="border-b border-zinc-800 flex gap-6">
-          {['overview', 'changes', 'resources', 'deleted'].map(t => (
-            <button
-              key={t}
-              onClick={() => {
-                setTab(t);
-                localStorage.setItem('pulse_inventory_active_tab', t);
-                if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
-                if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
-              }}
-              className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${tab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {/* Tabs and Content Group */}
+        <div>
+          <div className="border-b border-zinc-800 flex gap-6">
+            {['overview', 'changes', 'resources', 'deleted'].map(t => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTab(t);
+                  localStorage.setItem('pulse_inventory_active_tab', t);
+                  if (t === 'resources') setResourceFilter(prev => ({ ...prev, time: 'All' }));
+                  if (t === 'deleted') setDeletedFilter(prev => ({ ...prev, time: 'All' }));
+                }}
+                className={`pb-3 text-sm font-medium border-b-2 capitalize transition-colors ${tab === t ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
 
-        {tab === 'overview' && (
-          <Overview
-            summary={serverSummary}
-            filteredTrend={filteredTrend}
-            dynamicTypes={dynamicTypes}
-            dynamicRegions={dynamicRegions}
-            onKpiClick={(type) => {
-              if (type === 'new') {
-                setTab('resources');
-                localStorage.setItem('pulse_inventory_active_tab', 'resources');
-                setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
-              } else if (type === 'deleted') {
-                setTab('deleted');
-                localStorage.setItem('pulse_inventory_active_tab', 'deleted');
-                setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
-              }
-            }}
-            donut={donut}
-            tagDonut={tagDonut}
-            pieGroupFilter={pieGroupFilter}
-            setPieGroupFilter={setPieGroupFilter}
-            crossFilterType={crossFilterType}
-            setCrossFilterType={setCrossFilterType}
-            canDrillDown={canDrillDown}
-            topFilters={topFilters}
-            setTopFilters={setTopFilters}
-            selectedAccount={selectedAccount}
-          />
-        )}
-        {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
-        {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
-        {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={deletedDynamicGroups} dynamicTypes={deletedDynamicTypes} dynamicRegions={deletedDynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
+          <div className="pt-4">
+            {tab === 'overview' && (
+              <Overview
+                summary={serverSummary}
+                filteredTrend={filteredTrend}
+                dynamicTypes={dynamicTypes}
+                dynamicRegions={dynamicRegions}
+                onKpiClick={(type) => {
+                  if (type === 'new') {
+                    setTab('resources');
+                    localStorage.setItem('pulse_inventory_active_tab', 'resources');
+                    setResourceFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+                  } else if (type === 'deleted') {
+                    setTab('deleted');
+                    localStorage.setItem('pulse_inventory_active_tab', 'deleted');
+                    setDeletedFilter({ group: 'All', type: 'All', region: 'All', billable: 'All', time: 'Today' });
+                  }
+                }}
+                donut={donut}
+                tagDonut={tagDonut}
+                pieGroupFilter={pieGroupFilter}
+                setPieGroupFilter={setPieGroupFilter}
+                crossFilterType={crossFilterType}
+                setCrossFilterType={setCrossFilterType}
+                canDrillDown={canDrillDown}
+                topFilters={topFilters}
+                setTopFilters={setTopFilters}
+                selectedAccount={selectedAccount}
+              />
+            )}
+            {tab === 'changes' && <Changes topFilters={topFilters} setTopFilters={setTopFilters} provider={activeConfig?.provider} account={selectedAccount} />}
+            {tab === 'resources' && <Resources filter={resourceFilter} setFilter={setResourceFilter} dynamicGroups={dynamicGroups} dynamicTypes={dynamicTypes} dynamicRegions={dynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
+            {tab === 'deleted' && <Deleted filter={deletedFilter} setFilter={setDeletedFilter} dynamicGroups={deletedDynamicGroups} dynamicTypes={deletedDynamicTypes} dynamicRegions={deletedDynamicRegions} setSelectedResource={setSelectedResource} provider={activeConfig?.provider} account={selectedAccount} topFilters={topFilters} syncRefreshTrigger={syncRefreshTrigger} />}
+          </div>
+        </div>
 
         {tab !== 'overview' && <ScrollToTopButton />}
 

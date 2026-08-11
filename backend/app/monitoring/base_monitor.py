@@ -6,6 +6,7 @@ from app.core.database import SessionLocal
 from app.models.config.config_cloud_account import ConfigCloudAccount
 from app.models.control.control_resource import ControlResource
 from app.models.control.control_action_log import ControlActionLog
+from app.services.action_logger import log_control_action
 from app.models.system.system_notification import SystemNotification
 from app.services.control_service import control_service
 from app.core.security import decrypt_credentials
@@ -62,17 +63,17 @@ async def monitor_resource_transition(
                         config_data = json.loads(sched.saved_config_json) if sched.saved_config_json else {}
                         action_type = config_data.get('last_action', 'MANUAL START' if target_state.upper() == 'RUNNING' else 'MANUAL STOP')
                         
-                        log_entry = ControlActionLog(
+                        log_control_action(
+                            session=db,
                             native_id=sched.resource_id,
-                            resource_name=sched.resource_name,
-                            resource_type=sched.service_type,
                             account_name=sched.account_name,
                             provider=sched.cloud_provider,
                             action_type=action_type,
                             status="SUCCESS",
-                            details=f"Resource successfully transitioned to {sched.status}."
+                            details=f"Resource successfully transitioned to {sched.status}.",
+                            resource_name=sched.resource_name,
+                            resource_type=sched.service_type
                         )
-                        db.add(log_entry)
                         
                         notification = SystemNotification(
                             title="Resource State Changed",

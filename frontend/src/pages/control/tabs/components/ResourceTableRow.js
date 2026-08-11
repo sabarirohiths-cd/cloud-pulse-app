@@ -1,5 +1,6 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Server, Database, Clock, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, Eye, EyeOff } from 'lucide-react';
+import { ResourceIcon } from '../../../../components/ui/ResourceIcon';
 
 export const ResourceTableRow = React.memo(({
   r,
@@ -32,7 +33,7 @@ export const ResourceTableRow = React.memo(({
             isGroupView && <div className="w-5" />
           )}
           <div className="p-1.5 rounded bg-zinc-800/50 shrink-0">
-            {r.service_type?.toLowerCase() === 'ec2' ? <Server className="w-3.5 h-3.5 text-zinc-400" /> : <Database className="w-3.5 h-3.5 text-zinc-400" />}
+            <ResourceIcon serviceType={r.service_type} className="w-3.5 h-3.5 text-zinc-400" />
           </div>
           <div className="min-w-0">
             <div
@@ -100,12 +101,12 @@ export const ResourceTableRow = React.memo(({
               >
                 Schedule
               </button>
-              {r.status === 'RUNNING' ? (
+              {['RUNNING', 'AVAILABLE'].includes((r.status || '').toUpperCase()) ? (
                 <button
                   onClick={() => setModalState({ isOpen: true, mode: 'stop', resource: r })}
-                  disabled={isAsgManaged}
+                  disabled={isAsgManaged || ['STARTING', 'PENDING', 'STOPPING', 'TERMINATING'].includes((r.status || '').toUpperCase())}
                   title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${(isAsgManaged || ['STARTING', 'PENDING', 'STOPPING', 'TERMINATING'].includes((r.status || '').toUpperCase()))
                     ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
                     : 'bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/20'
                     }`}
@@ -115,9 +116,9 @@ export const ResourceTableRow = React.memo(({
               ) : (
                 <button
                   onClick={() => setModalState({ isOpen: true, mode: 'start', resource: r })}
-                  disabled={isAsgManaged}
+                  disabled={isAsgManaged || ['STARTING', 'PENDING', 'STOPPING', 'TERMINATING'].includes((r.status || '').toUpperCase())}
                   title={isAsgManaged ? `Controlled by ASG: ${asgName}` : ''}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${isAsgManaged
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded transition-colors whitespace-nowrap ${(isAsgManaged || ['STARTING', 'PENDING', 'STOPPING', 'TERMINATING'].includes((r.status || '').toUpperCase()))
                     ? 'bg-zinc-800 text-zinc-600 border border-zinc-800 cursor-not-allowed'
                     : 'bg-green-600/10 text-green-500 hover:bg-green-600/20 border border-green-600/20'
                     }`}

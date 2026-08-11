@@ -46,6 +46,7 @@ class ControlRepository:
             func.count(ControlResource.resource_id),
             func.sum(case((ControlResource.status == 'RUNNING', 1), else_=0)),
             func.sum(case((ControlResource.status == 'STOPPED', 1), else_=0)),
+            func.sum(case((ControlResource.status == 'TERMINATED', 1), else_=0)),
             func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
         ).where(and_(*conditions) if conditions else True)
             
@@ -65,7 +66,8 @@ class ControlRepository:
             "total_count": int(row[0] or 0),
             "running_count": int(row[1] or 0),
             "stopped_count": int(row[2] or 0),
-            "active_schedules_count": int(row[3] or 0),
+            "terminated_count": int(row[3] or 0),
+            "active_schedules_count": int(row[4] or 0),
             "type_breakdown": type_breakdown,
             "region_breakdown": region_breakdown
         }
