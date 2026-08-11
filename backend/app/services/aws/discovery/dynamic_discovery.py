@@ -123,6 +123,7 @@ async def discover_and_upsert_child_ec2(
                     log_entry = ControlActionLog(
                         native_id=inst_id,
                         resource_name=name,
+                        resource_type=new_res.service_type.value,
                         account_name=account_name,
                         provider="aws",
                         action_type="DISCOVERED",

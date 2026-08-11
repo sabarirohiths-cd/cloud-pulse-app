@@ -65,6 +65,7 @@ async def monitor_resource_transition(
                         log_entry = ControlActionLog(
                             native_id=sched.resource_id,
                             resource_name=sched.resource_name,
+                            resource_type=sched.service_type,
                             account_name=sched.account_name,
                             provider=sched.cloud_provider,
                             action_type=action_type,

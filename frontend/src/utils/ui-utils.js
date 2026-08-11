@@ -1,7 +1,7 @@
 import { getStrategy } from './cloud-strategies';
 
-export function formatType(rawType, provider = 'aws') {
-  return getStrategy(provider).formatType(rawType);
+export function formatType(rawType, provider = 'aws', nativeId = null) {
+  return getStrategy(provider).formatType(rawType, nativeId);
 }
 
 export function formatIdentifier(nativeId, provider = 'aws') {

@@ -86,6 +86,7 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
     log_entry = ControlActionLog(
         native_id=payload.resource_id,
         resource_name=sched.resource_name,
+        resource_type=sched.service_type if sched else None,
         account_name=payload.account_name,
         provider=sched.cloud_provider,
         action_type="SCHEDULE_UPDATED",
@@ -146,6 +147,7 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
             log = ControlActionLog(
                 native_id=payload.resource_id,
                 resource_name=sched.resource_name if sched else payload.resource_id,
+                resource_type=sched.service_type if sched else payload.service_type,
                 account_name=payload.account_name,
                 provider=config.provider,
                 action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
@@ -204,6 +206,7 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
         log_entry = ControlActionLog(
             native_id=payload.resource_id,
             resource_name=payload.resource_id,
+            resource_type=payload.service_type,
             account_name=payload.account_name,
             provider=config.provider,
             action_type="MANUAL START" if payload.action.upper() == "START" else "MANUAL STOP",
@@ -274,6 +277,7 @@ async def log_action(payload: LogActionPayload, db: AsyncSession = Depends(get_d
     log = ControlActionLog(
         native_id=payload.resource_id,
         resource_name=sched.resource_name if sched else payload.resource_id,
+        resource_type=sched.service_type if sched else None,
         account_name=payload.account_name,
         provider=provider,
         action_type=payload.action_type,
@@ -400,6 +404,7 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                             log_entry = ControlActionLog(
                                 native_id=sched.resource_id,
                                 resource_name=sched.resource_name,
+                                resource_type=sched.service_type,
                                 account_name=sched.account_name,
                                 provider=sched.cloud_provider,
                                 action_type="DISCOVERED",
@@ -577,6 +582,7 @@ async def get_live_state(
                 log_entry = ControlActionLog(
                     native_id=sched.resource_id,
                     resource_name=sched.resource_name,
+                    resource_type=sched.service_type,
                     account_name=sched.account_name,
                     provider=sched.cloud_provider,
                     action_type=action_type,
@@ -589,6 +595,7 @@ async def get_live_state(
                 log_entry = ControlActionLog(
                     native_id=sched.resource_id,
                     resource_name=sched.resource_name,
+                    resource_type=sched.service_type,
                     account_name=sched.account_name,
                     provider=sched.cloud_provider,
                     action_type=action_type,

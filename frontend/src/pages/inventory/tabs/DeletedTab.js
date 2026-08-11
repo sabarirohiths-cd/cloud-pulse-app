@@ -158,10 +158,10 @@ export function DeletedTab({ filter, setFilter, dynamicGroups, dynamicTypes, dyn
                     <div className="text-[13px] font-semibold text-zinc-200 truncate">{formatName(r.name, r.native_id, r.provider) || formatIdentifier(r.native_id, r.provider)}</div>
                     <div className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">{formatIdentifier(r.native_id, r.provider)}</div>
                   </td>
-                  <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium uppercase">
+                  <td className="px-4 py-3 text-[11px] text-zinc-400 font-medium uppercase">
                     {formatType(r.resource_type, r.provider)}
                   </td>
-                  <td className="px-4 py-3 text-[13px] text-zinc-400 font-medium">{r.region}</td>
+                  <td className="px-4 py-3 text-[11px] text-zinc-400 font-medium">{r.region}</td>
                 <td className="px-4 py-3">
                   <span className="text-xs text-red-400">
                     <span className="text-zinc-400">
