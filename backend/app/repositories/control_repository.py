@@ -15,14 +15,20 @@ class ControlRepository:
     async def get_dashboard_summary(db: AsyncSession, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None, service_type: Optional[str] = None, status: Optional[str] = None):
         conditions = []
         
-        # DYNAMIC: Exclude parent clusters from the count since they are non-actionable containers.
-        # We determine parents dynamically by finding any resource_id that is listed as a parent_resource_id.
+        # DYNAMIC: Exclude ONLY non-actionable parent clusters (like ECS Clusters, Beanstalk Apps) from the count.
+        # Actionable parents like ASGs and Beanstalk Environments (which can be STOPPED/RUNNING) should be counted.
+        # We identify non-actionable parents as those with a status of 'ACTIVE' or 'UNKNOWN'.
         parent_ids_stmt = select(ControlResource.parent_resource_id).where(ControlResource.parent_resource_id.is_not(None)).distinct()
         parent_ids_res = await db.execute(parent_ids_stmt)
         parent_ids = [pid for pid in parent_ids_res.scalars().all() if pid]
         
         if parent_ids:
-            conditions.append(~ControlResource.resource_id.in_(parent_ids))
+            conditions.append(
+                ~and_(
+                    ControlResource.resource_id.in_(parent_ids),
+                    ControlResource.status.in_(['ACTIVE', 'UNKNOWN'])
+                )
+            )
         
         if account_name and account_name != 'All Accounts':
             conditions.append(ControlResource.account_name == account_name)

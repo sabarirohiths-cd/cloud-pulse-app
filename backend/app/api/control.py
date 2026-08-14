@@ -370,69 +370,80 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                     existing_ids = {s.resource_id for s in existing_schedules}
                 
                     fetched_ids = set()
-                    for r in resources:
-                        fetched_ids.add(r['resource_id'])
-                        # Upsert into ControlResource
-                        sched = await db.get(ControlResource, r['resource_id'])
-                        if not sched:
-                            sched = ControlResource(
-                                resource_id=r['resource_id'],
-                                service_type=r['service_type'],
-                                control_type=r['control_type'],
-                                resource_name=r.get('resource_name', r['resource_id']),
-                                status=r.get('status', 'UNKNOWN'),
-                                instance_spec=r.get('instance_spec', 'unknown'),
-                                cloud_provider=config["provider"],
-                                account_name=config["account_name"],
-                                linked_account=r.get('linked_account'),
-                                region=r.get('region', config["default_region"]),
-                                tags_json=json.dumps(r.get('tags', {})),
-                                parent_resource_id=r.get('parent_resource_id'),
-                                is_automation_enabled=False
-                            )
-                            db.add(sched)
-                        
-                            # Log the discovery
-                            log_control_action(
-                                session=db,
-                                native_id=r.resource_id,
-                                account_name=config.account_name,
-                                provider=config.provider,
-                                action_type="AUTO DISCOVERY",
-                                status="SUCCESS",
-                                details="Resource auto-discovered and added",
-                                resource_name=r.resource_name,
-                                resource_type=r.service_type
-                            )
-                        
-                            from app.models.system.system_notification import SystemNotification
-                            notification = SystemNotification(
-                                title="New Resource Discovered",
-                                message=f"{sched.resource_name} ({sched.resource_id}) was newly discovered during sync.",
-                                type="INFO",
-                                module="CONTROL"
-                            )
-                            db.add(notification)
-                        else:
-                            sched.service_type = r['service_type']
-                            sched.control_type = r['control_type']
-                            sched.resource_name = r.get('resource_name', r['resource_id'])
-                            sched.cloud_provider = config["provider"]
-                            sched.account_name = config["account_name"]
-                            sched.status = r['status']
-                            sched.instance_spec = r['instance_spec']
-                            sched.tags_json = json.dumps(r.get('tags', {}))
-                            
-                            # Scale-to-Zero Protection: If an ASG scales to 0, it may lose the EC2 instance tags
-                            # needed to map it to its parent EKS/ECS cluster. If the new sync returns None for parent,
-                            # but we already had a parent mapped, preserve the existing parent relationship.
-                            if r.get('parent_resource_id') is None and sched.parent_resource_id and sched.service_type == 'ASG':
-                                pass
-                            else:
-                                sched.parent_resource_id = r.get('parent_resource_id')
-                            
-                            sched.linked_account = r.get('linked_account')
-                            sched.region = r.get('region', config["default_region"])
+                    
+                    CHUNK_SIZE = 1000
+                    for i in range(0, len(resources), CHUNK_SIZE):
+                        chunk = resources[i:i + CHUNK_SIZE]
+                        try:
+                            for r in chunk:
+                                fetched_ids.add(r['resource_id'])
+                                # Upsert into ControlResource
+                                sched = await db.get(ControlResource, r['resource_id'])
+                                if not sched:
+                                    sched = ControlResource(
+                                        resource_id=r['resource_id'],
+                                        service_type=r['service_type'],
+                                        control_type=r['control_type'],
+                                        resource_name=r.get('resource_name', r['resource_id']),
+                                        status=r.get('status', 'UNKNOWN'),
+                                        instance_spec=r.get('instance_spec', 'unknown'),
+                                        cloud_provider=config["provider"],
+                                        account_name=config["account_name"],
+                                        linked_account=r.get('linked_account'),
+                                        region=r.get('region', config["default_region"]),
+                                        tags_json=json.dumps(r.get('tags', {})),
+                                        parent_resource_id=r.get('parent_resource_id'),
+                                        is_automation_enabled=False
+                                    )
+                                    db.add(sched)
+                                
+                                    # Log the discovery
+                                    log_control_action(
+                                        session=db,
+                                        native_id=r['resource_id'],
+                                        account_name=config["account_name"],
+                                        provider=config["provider"],
+                                        action_type="AUTO DISCOVERY",
+                                        status="SUCCESS",
+                                        details="Resource auto-discovered and added",
+                                        resource_name=r.get('resource_name', r['resource_id']),
+                                        resource_type=r['service_type']
+                                    )
+                                
+                                    from app.models.system.system_notification import SystemNotification
+                                    notification = SystemNotification(
+                                        title="New Resource Discovered",
+                                        message=f"{sched.resource_name} ({sched.resource_id}) was newly discovered during sync.",
+                                        type="INFO",
+                                        module="CONTROL"
+                                    )
+                                    db.add(notification)
+                                else:
+                                    sched.service_type = r['service_type']
+                                    sched.control_type = r['control_type']
+                                    sched.resource_name = r.get('resource_name', r['resource_id'])
+                                    sched.cloud_provider = config["provider"]
+                                    sched.account_name = config["account_name"]
+                                    sched.status = r.get('status', 'UNKNOWN')
+                                    sched.instance_spec = r.get('instance_spec', 'unknown')
+                                    sched.tags_json = json.dumps(r.get('tags', {}))
+                                    
+                                    # Scale-to-Zero Protection: If an ASG scales to 0, it may lose the EC2 instance tags
+                                    # needed to map it to its parent EKS/ECS cluster. If the new sync returns None for parent,
+                                    # but we already had a parent mapped, preserve the existing parent relationship.
+                                    if r.get('parent_resource_id') is None and sched.parent_resource_id and sched.service_type == 'ASG':
+                                        pass
+                                    else:
+                                        sched.parent_resource_id = r.get('parent_resource_id')
+                                    
+                                    sched.linked_account = r.get('linked_account')
+                                    sched.region = r.get('region', config["default_region"])
+                            await db.commit()
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                            print(f"[Backend Sync] Error processing chunk {i}: {e}")
+                            await db.rollback()
                         
                     # Delete stale resources that no longer exist in AWS
                     stale_ids = existing_ids - fetched_ids
@@ -483,7 +494,11 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
             
         async with SessionLocal() as db:
             if synced_count > 0:
-                msg = f"Successfully synced {synced_count} resources."
+                # Fetch actionable count to display alongside total to avoid confusion with dashboard counts
+                from app.repositories.control_repository import control_repository
+                summary = await control_repository.get_dashboard_summary(db)
+                actionable_count = summary.get("total_count", 0)
+                msg = f"Successfully synced {synced_count} total resources ({actionable_count} actionable)."
                 from app.models.system.system_notification import SystemNotification
                 notification = SystemNotification(
                     title="Control Sync Completed",

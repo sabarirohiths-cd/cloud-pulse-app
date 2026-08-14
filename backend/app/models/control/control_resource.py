@@ -9,7 +9,6 @@ class ServiceType(str, enum.Enum):
     AURORA = "AURORA"
     DOCUMENTDB = "DOCUMENTDB"
     REDSHIFT = "REDSHIFT"
-    
     SAGEMAKER = "SAGEMAKER"
     WORKSPACES = "WORKSPACES"
     ASG = "ASG"

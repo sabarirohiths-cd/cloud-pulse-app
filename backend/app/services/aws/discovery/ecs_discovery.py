@@ -3,9 +3,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def discover_asg_and_cp_status(session, cluster_name: str, service_name: str = None) -> Tuple[bool, list, list]:
-    ecs = session.client('ecs')
-    ec2 = session.client('ec2')
+def discover_asg_and_cp_status(session, cluster_name: str, service_name: str = None, region: str = None) -> Tuple[bool, list, list]:
+    ecs = session.client('ecs', region_name=region) if region else session.client('ecs')
+    ec2 = session.client('ec2', region_name=region) if region else session.client('ec2')
     
     has_managed_cp = False
     managed_asgs = []
@@ -51,18 +51,34 @@ def discover_asg_and_cp_status(session, cluster_name: str, service_name: str = N
         ci_arns = []
         if service_name:
             # Find tasks for this specific service
-            task_res = ecs.list_tasks(cluster=cluster_name, serviceName=service_name)
-            task_arns = task_res.get('taskArns', [])
-            if task_arns:
-                desc_tasks = ecs.describe_tasks(cluster=cluster_name, tasks=task_arns[:100])
-                for task in desc_tasks.get('tasks', []):
-                    ci_arn = task.get('containerInstanceArn')
-                    if ci_arn and ci_arn not in ci_arns:
-                        ci_arns.append(ci_arn)
+            next_token = None
+            while True:
+                kwargs = {'cluster': cluster_name, 'serviceName': service_name}
+                if next_token:
+                    kwargs['nextToken'] = next_token
+                task_res = ecs.list_tasks(**kwargs)
+                task_arns = task_res.get('taskArns', [])
+                if task_arns:
+                    desc_tasks = ecs.describe_tasks(cluster=cluster_name, tasks=task_arns[:100])
+                    for task in desc_tasks.get('tasks', []):
+                        ci_arn = task.get('containerInstanceArn')
+                        if ci_arn and ci_arn not in ci_arns:
+                            ci_arns.append(ci_arn)
+                next_token = task_res.get('nextToken')
+                if not next_token:
+                    break
         
         if not ci_arns:
-            ci_res = ecs.list_container_instances(cluster=cluster_name, maxResults=100)
-            ci_arns = ci_res.get('containerInstanceArns', [])
+            next_token = None
+            while True:
+                kwargs = {'cluster': cluster_name, 'maxResults': 100}
+                if next_token:
+                    kwargs['nextToken'] = next_token
+                ci_res = ecs.list_container_instances(**kwargs)
+                ci_arns.extend(ci_res.get('containerInstanceArns', []))
+                next_token = ci_res.get('nextToken')
+                if not next_token:
+                    break
             
         if ci_arns:
             desc_ci_res = ecs.describe_container_instances(cluster=cluster_name, containerInstances=ci_arns)

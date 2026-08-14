@@ -42,25 +42,36 @@ class DocumentDBHandler(BaseDirectPowerHandler):
     def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         resources = []
         client = session.client('docdb', region_name=region)
-        clusters_res = client.describe_db_clusters()
-        for cluster in clusters_res.get('DBClusters', []):
-            if cluster.get('Engine') != 'docdb':
-                continue
+        
+        marker = None
+        while True:
+            params = {}
+            if marker:
+                params['Marker'] = marker
+                
+            clusters_res = client.describe_db_clusters(**params)
+            for cluster in clusters_res.get('DBClusters', []):
+                if cluster.get('Engine') != 'docdb':
+                    continue
 
-            tags_list = cluster.get('TagList', [])
-            tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
+                tags_list = cluster.get('TagList', [])
+                tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
 
-            resources.append({
-                'resource_id': cluster['DBClusterIdentifier'],
-                'resource_name': cluster['DBClusterIdentifier'],
-                'cloud_provider': 'aws',
-                'region': region,
-                'service_type': ServiceType.DOCUMENTDB.value,
-                'control_type': ControlType.DIRECT_POWER.value,
-                'status': normalize_docdb_status(cluster.get('Status', 'unknown')),
-                'instance_spec': 'cluster',
-                'tags': tags_dict,
-                'last_synced_at': datetime.now(timezone.utc)
-            })
+                resources.append({
+                    'resource_id': cluster['DBClusterIdentifier'],
+                    'resource_name': cluster['DBClusterIdentifier'],
+                    'cloud_provider': 'aws',
+                    'region': region,
+                    'service_type': ServiceType.DOCUMENTDB.value,
+                    'control_type': ControlType.DIRECT_POWER.value,
+                    'status': normalize_docdb_status(cluster.get('Status', 'unknown')),
+                    'instance_spec': 'cluster',
+                    'tags': tags_dict,
+                    'last_synced_at': datetime.now(timezone.utc)
+                })
+                
+            marker = clusters_res.get('Marker')
+            if not marker:
+                break
 
         return resources

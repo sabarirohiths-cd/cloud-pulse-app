@@ -246,11 +246,10 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   const filteredResources = resources.filter(r => {
     if (!isGroupView) {
-      // DYNAMIC: A resource is a parent container if it has no parent itself, 
-      // AND there is at least one other resource that claims it as a parent.
-      // (Backend eager-loads families, so children are guaranteed to be in the array).
-      const isParentCluster = !r.parent_resource_id && resources.some(child => child.parent_resource_id === r.resource_id);
-      if (isParentCluster) return false;
+      // DYNAMIC: Exclude ONLY non-actionable parent clusters (like ECS Clusters, Beanstalk Apps) from flat view.
+      // Actionable parents like ASGs and Beanstalk Environments (which can be STOPPED/RUNNING) should be shown.
+      const isNonActionableParent = ['ACTIVE', 'UNKNOWN'].includes(r.status) && resources.some(child => child.parent_resource_id === r.resource_id);
+      if (isNonActionableParent) return false;
       return directlyMatchedIds.has(r.resource_id);
     }
     return familyMatchedIds.has(r.resource_id);

@@ -47,9 +47,10 @@ The backend is designed using an asynchronous, plugin-based architecture with Fa
 
 ### **AWS Provider Implementation (`backend/app/services/aws/`)**
 *   `service.py` & `session.py`: High-level AWS credential validation and Boto3 session management.
-*   `scanner.py`: Utilizes `ThreadPoolExecutor` to iterate through all registered handlers across all AWS regions for ultra-fast parallel discovery.
-*   `handlers/direct_power/`: Plugins for resources with native start/stop actions (e.g., `ec2_handler.py`, `rds_handler.py`, `documentdb_handler.py`, `redshift_handler.py`, `sagemaker_handler.py`, `workspaces_handler.py`).
-*   `handlers/scale_to_zero/`: Plugins for managing resource state by scaling capacity to zero.
+*   `scanner.py`: The high-performance sync orchestrator. It uses a strictly tuned `ThreadPoolExecutor(max_workers=20)` to fan out parallel requests across 18 AWS regions. This hard limit achieves perfect balance: it maximizes network throughput while preventing Python GIL (Global Interpreter Lock) contention and protecting the account from AWS API throttling (exponential backoff).
+*   `discovery/`: The extraction layer for complex relational discovery (e.g., `ecs_discovery.py`, `asg_discovery.py`). Crucially, this layer leverages EC2 Launch Template `UserData` parsing for ultra-fast, single-API-call mappings instead of iterating heavy AWS APIs.
+*   `handlers/direct_power/`: Plugins for resources with native start/stop actions (e.g., `ec2_handler.py`, `rds_handler.py`).
+*   `handlers/scale_to_zero/`: Plugins for managing resource state by scaling capacity to zero (e.g., ASG, ECS). ECS clusters serve as hierarchical UI parents for their underlying EC2 instances.
 *   `handlers/destroy_recreate/`: Plugins for managing ephemeral resources by destroying and recreating them.
 
 ---
@@ -70,6 +71,7 @@ The frontend is a React 19 application styled with Tailwind CSS, utilizing optim
 ### **Shared UI Components (`frontend/src/components/ui/`)**
 *   `FilterBar.js`: Reusable navigation bar for applying global search filters (e.g., Account, Region, Range).
 *   `CustomSelect.js`: Highly styled, custom dropdown select component used throughout the application.
+*   `ResourceIcon.js`: Universal dynamic icon renderer mapping cloud service types to Lucide-React icons.
 
 ### **Dashboard Pages (`frontend/src/pages/`)**
 *   **Config Page**
@@ -78,9 +80,10 @@ The frontend is a React 19 application styled with Tailwind CSS, utilizing optim
     *   `control/ControlPage.js`: The main dashboard wrapping all tabs. Handles high-level state, global filtering, and triggering the multi-region sync.
     *   `control/ActionModal.js`: The dynamic popup modal that handles both manual overrides (Start/Stop) and automation schedule configurations.
 *   **Control Tabs (`frontend/src/pages/control/tabs/`)**
-    *   `OverviewTab.js`: High-level KPI widgets displaying active schedules, running counts, and stopped counts.
+    *   `OverviewTab.js`: High-level dashboard rendering 3 main widgets: Resource Distribution (Donut), Geographical Distribution (Bar Chart), and a live Recent Actions audit feed. Includes top KPIs (Running, Stopped, Terminated).
     *   `ResourcesTab.js`: The detailed data table listing all synced resources, their rich specifications (e.g., `t3.micro`), current power state, and manual action buttons.
-    *   `ActivityLogTab.js`: The audit log table displaying a historical timeline of all manual overrides and automated actions (successes/failures).
+    *   `ActivityLogTab.js`: The comprehensive audit log table displaying a historical timeline of all manual overrides and automated actions.
+    *   `SettingsTab.js`: System configuration preferences rendered as a native vertical list layout (`SettingsRow.js`).
 
 ---
 

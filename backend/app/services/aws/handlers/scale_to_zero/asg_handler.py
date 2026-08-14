@@ -103,37 +103,33 @@ class ASGHandler(BaseScaleToZeroHandler):
         return saved_config
 
     def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
-        from app.services.aws.discovery.ecs_discovery import discover_asg_and_cp_status
         from app.services.aws.discovery.asg_discovery import find_parent_instance_from_asg, get_ecs_cluster_from_launch_template
         from app.services.aws.discovery.eks_discovery import map_all_eks_unmanaged_asgs
         
         resources = []
         cp_asgs = {}
-        asg_to_cluster = {}
         
         client = session.client('autoscaling', region_name=region)
         ecs_client = session.client('ecs', region_name=region)
+        ec2_client = session.client('ec2', region_name=region)
 
         try:
-            cluster_paginator = ecs_client.get_paginator('list_clusters')
-            for cluster_page in cluster_paginator.paginate():
-                for cluster_arn in cluster_page.get('clusterArns', []):
-                    cl_name = cluster_arn.split('/')[-1]
-                    try:
-                        _, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cl_name)
-                        mapped_asg_names = managed_asgs + unmanaged_asgs
-                        for asg_name in mapped_asg_names:
-                            asg_to_cluster[asg_name] = cl_name
-                    except Exception:
-                        pass
-                        
-            cp_res = ecs_client.describe_capacity_providers()
-            for cp in cp_res.get('capacityProviders', []):
-                asg_arn = cp.get('autoScalingGroupProvider', {}).get('autoScalingGroupArn')
-                status = cp.get('autoScalingGroupProvider', {}).get('managedScaling', {}).get('status', 'DISABLED')
-                if asg_arn:
-                    asg_name_cp = asg_arn.split('autoScalingGroupName/')[-1]
-                    cp_asgs[asg_name_cp] = status
+            next_token = None
+            while True:
+                params = {}
+                if next_token:
+                    params['nextToken'] = next_token
+                cp_res = ecs_client.describe_capacity_providers(**params)
+                for cp in cp_res.get('capacityProviders', []):
+                    asg_arn = cp.get('autoScalingGroupProvider', {}).get('autoScalingGroupArn')
+                    status = cp.get('autoScalingGroupProvider', {}).get('managedScaling', {}).get('status', 'DISABLED')
+                    if asg_arn:
+                        asg_name_cp = asg_arn.split('autoScalingGroupName/')[-1]
+                        cp_asgs[asg_name_cp] = status
+                
+                next_token = cp_res.get('nextToken')
+                if not next_token:
+                    break
         except Exception as e:
             logger.warning(f"Error mapping capacity providers in ASG sync scan: {e}")
 
@@ -151,17 +147,19 @@ class ASGHandler(BaseScaleToZeroHandler):
                 desired = asg.get('DesiredCapacity', 0)
                 status = 'RUNNING' if desired > 0 else 'STOPPED'
                 
-                parent_id = asg_to_cluster.get(asg_name)
+                parent_id = None
+                
                 if not parent_id:
                     # 1. Try Deep Inspection of User Data (Highly reliable for 0-capacity ECS unmanaged ASGs)
-                    parent_id = get_ecs_cluster_from_launch_template(asg_name, session)
+                    parent_id = get_ecs_cluster_from_launch_template(asg_name, client, ec2_client)
                     
                 if not parent_id:
                     # 2. Try Snapshot mapping (Fallback for standard EC2 AutoScaling)
-                    parent_id = find_parent_instance_from_asg(asg_name, session)
+                    parent_id = find_parent_instance_from_asg(asg_name, client, ec2_client)
 
                 is_eks_managed = 'eks:nodegroup-name' in tags_dict
                 is_beanstalk = 'elasticbeanstalk:environment-name' in tags_dict
+                is_ecs_asg = False
                 
                 spec = f"Min:{asg.get('MinSize')} Max:{asg.get('MaxSize')}"
                 if is_beanstalk:
@@ -189,11 +187,15 @@ class ASGHandler(BaseScaleToZeroHandler):
                 elif asg_name in cp_asgs:
                     cp_status = cp_asgs[asg_name]
                     spec = f"ECS CP ({cp_status}) | {spec}"
-                elif parent_id and asg_name in asg_to_cluster:
-                    spec = f"ECS (Unmanaged) | {spec}"
+                    is_ecs_asg = True
                 elif any('ecs' in t.get('Key').lower() or 'ecs' in t.get('Value', '').lower() for t in tags_list):
                     spec = f"ECS (Unmanaged) | {spec}"
+                    is_ecs_asg = True
                     
+                # ECS ASGs act as parent folders for EC2 instances, so they MUST be emitted.
+                # However, since ECS Services automatically manage their scaling, we disable manual
+                # control for ECS ASGs by setting scale_to_zero_eligible = False.
+                
                 resources.append({
                     'resource_id': asg_name,
                     'resource_name': asg_name,
@@ -205,6 +207,7 @@ class ASGHandler(BaseScaleToZeroHandler):
                     'instance_spec': spec,
                     'tags': tags_dict,
                     'parent_resource_id': parent_id,
+                    'scale_to_zero_eligible': not is_ecs_asg,
                     'last_synced_at': datetime.now(timezone.utc)
                 })
 
