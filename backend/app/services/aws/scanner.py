@@ -66,18 +66,6 @@ class AWSParallelScanner:
         active_regions = await asyncio.to_thread(self.get_active_regions, credentials, default_region)
         logger.info(f"[AWS Scanner] Scanning {len(active_regions)} regions natively via asyncio...")
         
-        # --- PROFILING SETUP ---
-        log_file = os.path.join(os.getcwd(), 'sync_profile_temp.txt')
-        with open(log_file, 'w') as f:
-            f.write(f"--- SYNC PROFILE STARTED AT {datetime.now()} ---\n")
-            f.write(f"Active Regions ({len(active_regions)}): {active_regions}\n")
-        
-        def write_profile(msg: str):
-            with open(log_file, 'a') as f:
-                f.write(msg + "\n")
-                
-        write_profile("Phase 1: Region Discovery Complete.")
-        # -----------------------
         
         all_resources: List[Dict[str, Any]] = []
         
@@ -103,24 +91,15 @@ class AWSParallelScanner:
                 if svc_name and region not in service_regions.get(svc_name, set()):
                     continue
                     
-                async def profile_wrapper(h=handler, r=region, svc=svc_name):
-                    start_time = time.perf_counter()
+                async def scan_wrapper(h=handler, r=region):
                     try:
-                        res = await h.async_scan_region(self.session_manager, credentials, r, executor=_SCANNER_EXECUTOR)
-                        duration = time.perf_counter() - start_time
-                        write_profile(f"[SUCCESS] {svc} in {r}: {duration:.2f} seconds (Found: {len(res) if res else 0})")
-                        return res
+                        return await h.async_scan_region(self.session_manager, credentials, r, executor=_SCANNER_EXECUTOR)
                     except Exception as e:
-                        duration = time.perf_counter() - start_time
-                        write_profile(f"[ERROR] {svc} in {r}: {duration:.2f} seconds (Error: {str(e)})")
                         return e
                         
-                tasks.append(profile_wrapper())
+                tasks.append(scan_wrapper())
         
-        write_profile(f"Phase 2: Submitting {len(tasks)} tasks to executor...")
-        gather_start = time.perf_counter()
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        gather_duration = time.perf_counter() - gather_start
         # 3. Filter exceptions and flatten valid results
         for res in results:
             if isinstance(res, Exception):
@@ -128,7 +107,7 @@ class AWSParallelScanner:
             elif isinstance(res, list):
                 all_resources.extend(res)
                     
-        write_profile(f"Phase 3: asyncio.gather completed in {gather_duration:.2f} seconds. Total Resources Discovered: {len(all_resources)}")
+        
         logger.info(f"[AWS Scanner] Parallel scan complete. Discovered {len(all_resources)} total resources.")
         return all_resources
 
