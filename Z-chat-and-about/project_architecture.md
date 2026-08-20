@@ -47,7 +47,7 @@ The backend is designed using an asynchronous, plugin-based architecture with Fa
 
 ### **AWS Provider Implementation (`backend/app/services/aws/`)**
 *   `service.py` & `session.py`: High-level AWS credential validation and Boto3 session management.
-*   `scanner.py`: The high-performance sync orchestrator. It uses a strictly tuned `ThreadPoolExecutor(max_workers=20)` to fan out parallel requests across 18 AWS regions. This hard limit achieves perfect balance: it maximizes network throughput while preventing Python GIL (Global Interpreter Lock) contention and protecting the account from AWS API throttling (exponential backoff).
+*   `scanner.py`: The high-performance sync orchestrator. It globally caches the `botocore.session` via `AWSSessionManager` to eliminate heavy JSON parsing GIL contention. It uses a strictly tuned `ThreadPoolExecutor(max_workers=20)` to fan out parallel requests across 18 AWS regions. This hard limit achieves perfect balance: it maximizes network throughput while protecting the account from AWS API Rate Limiting (which would otherwise trigger exponential backoff penalties).
 *   `discovery/`: The extraction layer for complex relational discovery (e.g., `ecs_discovery.py`, `asg_discovery.py`). Crucially, this layer leverages EC2 Launch Template `UserData` parsing for ultra-fast, single-API-call mappings instead of iterating heavy AWS APIs.
 *   `handlers/direct_power/`: Plugins for resources with native start/stop actions (e.g., `ec2_handler.py`, `rds_handler.py`).
 *   `handlers/scale_to_zero/`: Plugins for managing resource state by scaling capacity to zero (e.g., ASG, ECS). ECS clusters serve as hierarchical UI parents for their underlying EC2 instances.

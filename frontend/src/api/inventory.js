@@ -96,7 +96,6 @@ export const getChanges = async (provider, configId, days, account, change_type,
   const raw = await getInventoryChanges(account, days, change_type, search, region, linked_account, tag, limit, offset);
   const changes = (raw.changes || raw).map(c => ({
     change_type: c.change_type,
-    resource_id: c.native_id,
     resource_name: c.name || c.native_id,
     native_id: c.native_id,
     resource_type: c.resource_type || 'unknown',
@@ -140,7 +139,6 @@ export const getResources = async (provider, configId, type, region, billable, a
   const resourcesList = raw.resources || raw; // fallback for backwards compat if needed
 
   const resources = resourcesList.map(r => ({
-    resource_id: r.native_id,
     native_id: r.native_id,
     name: r.name,
     tags: typeof r.tags === 'string' ? (() => { try { return JSON.parse(r.tags) } catch (e) { return {} } })() : (r.tags || {}),
