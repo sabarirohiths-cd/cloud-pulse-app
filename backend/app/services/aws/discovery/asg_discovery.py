@@ -4,14 +4,12 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
-def find_parent_instance_from_asg(asg_name: str, session) -> str:
+def find_parent_instance_from_asg(asg_name: str, autoscaling, ec2) -> str:
     """
     Auto-discovers the parent EC2 instance ID that an ASG was cloned from
     by traversing Launch Template -> AMI -> EBS Snapshot description.
     """
     try:
-        autoscaling = session.client('autoscaling')
-        ec2 = session.client('ec2')
         
         # 1. Get ASG configuration
         asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
@@ -87,14 +85,13 @@ def find_parent_instance_from_asg(asg_name: str, session) -> str:
 
 import base64
 
-def get_ecs_cluster_from_launch_template(asg_name: str, session) -> str:
+def get_ecs_cluster_from_launch_template(asg_name: str, autoscaling, ec2) -> str:
     """
-    Deep inspection of ASG's Launch Template UserData to find ECS_CLUSTER name.
-    Useful when the ASG has 0 instances so standard container instance mapping fails.
+    Parses the ASG's Launch Template UserData to find the ECS_CLUSTER environment variable.
+    This is highly reliable for discovering ECS mapping for 0-capacity unmanaged ASGs.
     """
+    import base64
     try:
-        autoscaling = session.client('autoscaling')
-        ec2 = session.client('ec2')
         
         asg_res = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
         groups = asg_res.get('AutoScalingGroups', [])

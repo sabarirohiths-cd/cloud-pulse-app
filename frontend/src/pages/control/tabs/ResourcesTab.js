@@ -96,12 +96,20 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
     }
   };
 
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  useEffect(() => {
+    const handleRefresh = () => setRefreshCounter(c => c + 1);
+    window.addEventListener('app:refresh-data', handleRefresh);
+    return () => window.removeEventListener('app:refresh-data', handleRefresh);
+  }, []);
+
   useEffect(() => {
     setHasMore(true);
     setOffset(0);
     loadResources(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topFilters.account, topFilters.provider, topFilters.region, topFilters.tag, syncRefreshTrigger]);
+  }, [topFilters.account, topFilters.provider, topFilters.region, topFilters.tag, syncRefreshTrigger, refreshCounter]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
@@ -113,7 +121,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   // Real-Time Polling Engine
   useResourcePolling(resources, setResources);
 
-  const handleModalConfirm = async ({ mode, resource, automationEnabled, schedulePattern, ownerEmail, startTime, stopTime, timezone }) => {
+  const handleModalConfirm = async ({ mode, resource, automationEnabled, startTime, stopTime, timezone, disabledDates }) => {
     try {
       if (mode === 'schedule') {
         await saveSchedule({
@@ -122,16 +130,15 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           account_name: resource.account_name,
           region: resource.region,
           is_automation_enabled: automationEnabled,
-          schedule_pattern: schedulePattern,
-          owner_email: ownerEmail,
-          start_time: startTime,
+                              start_time: startTime,
           stop_time: stopTime,
-          timezone: timezone
+          timezone: timezone,
+          disabled_dates: disabledDates
         });
 
         setResources(prev => prev.map(r => r.resource_id === resource.resource_id ? {
           ...r,
-          schedule: { is_automation_enabled: automationEnabled, schedule_pattern: schedulePattern, owner_email: ownerEmail, start_time: startTime, stop_time: stopTime, timezone: timezone }
+          schedule: { is_automation_enabled: automationEnabled, start_time: startTime, stop_time: stopTime, timezone: timezone, disabled_dates: disabledDates }
         } : r));
 
         toast.success(`Schedule saved for ${resource.resource_id}`);
@@ -246,11 +253,10 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
 
   const filteredResources = resources.filter(r => {
     if (!isGroupView) {
-      // DYNAMIC: A resource is a parent container if it has no parent itself, 
-      // AND there is at least one other resource that claims it as a parent.
-      // (Backend eager-loads families, so children are guaranteed to be in the array).
-      const isParentCluster = !r.parent_resource_id && resources.some(child => child.parent_resource_id === r.resource_id);
-      if (isParentCluster) return false;
+      // DYNAMIC: Exclude ONLY non-actionable parent clusters (like ECS Clusters, Beanstalk Apps) from flat view.
+      // Actionable parents like ASGs and Beanstalk Environments (which can be STOPPED/RUNNING) should be shown.
+      const isNonActionableParent = ['ACTIVE', 'UNKNOWN'].includes(r.status) && resources.some(child => child.parent_resource_id === r.resource_id);
+      if (isNonActionableParent) return false;
       return directlyMatchedIds.has(r.resource_id);
     }
     return familyMatchedIds.has(r.resource_id);

@@ -1,5 +1,8 @@
 import asyncio
+import concurrent.futures
 from datetime import datetime
+import time
+import os
 import logging
 from typing import List, Dict, Any, Optional
 
@@ -7,6 +10,24 @@ from app.services.aws.session import AWSSessionManager
 from app.services.aws.handlers import REGISTERED_HANDLERS
 
 logger = logging.getLogger(__name__)
+
+# Using max_workers=20 is the sweet spot. 
+# Increasing this causes AWS API Throttling (RequestLimitExceeded), leading to exponential backoffs (sleeps) that actually make the scan slower.
+_SCANNER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+
+HANDLER_SERVICE_MAP = {
+    'EC2Handler': 'ec2',
+    'RDSHandler': 'rds',
+    'DocumentDBHandler': 'docdb',
+    'RedshiftHandler': 'redshift',
+    'SageMakerHandler': 'sagemaker',
+    'WorkSpacesHandler': 'workspaces',
+    'ASGHandler': 'autoscaling',
+    'ECSScaleToZeroHandler': 'ecs',
+    'EKSHandler': 'eks',
+    'AppRunnerHandler': 'apprunner',
+    'BeanstalkHandler': 'elasticbeanstalk'
+}
 
 class AWSParallelScanner:
     """
@@ -29,25 +50,64 @@ class AWSParallelScanner:
             return [default_region]
 
     async def scan_all_resources_parallel(self, credentials: dict, default_region: str = "us-east-1") -> List[Dict[str, Any]]:
+        # PRE-RESOLVE STS AssumeRole ONCE:
+        # Avoids 200 redundant blocking network calls to STS during the parallel worker fan-out.
+        if credentials.get('assume_role_arn'):
+            def _resolve_sts():
+                session = self.session_manager.create_session(credentials, default_region)
+                creds = session.get_credentials().get_frozen_credentials()
+                return {
+                    'aws_access_key_id': creds.access_key,
+                    'aws_secret_access_key': creds.secret_key,
+                    'aws_session_token': creds.token
+                }
+            credentials = await asyncio.to_thread(_resolve_sts)
+
         active_regions = await asyncio.to_thread(self.get_active_regions, credentials, default_region)
         logger.info(f"[AWS Scanner] Scanning {len(active_regions)} regions natively via asyncio...")
         
+        
         all_resources: List[Dict[str, Any]] = []
         
+        # 1. Pre-fetch available regions for each service to filter out Dead Endpoints (O(1) checks)
+        session = self.session_manager.create_session(credentials, default_region)
+        service_regions = {}
+        for handler in self.handlers:
+            svc_name = HANDLER_SERVICE_MAP.get(type(handler).__name__)
+            if svc_name:
+                try:
+                    service_regions[svc_name] = set(session.get_available_regions(svc_name))
+                except Exception:
+                    service_regions[svc_name] = set(active_regions)
+            else:
+                service_regions[type(handler).__name__] = set(active_regions)
+                
         tasks = []
         for region in active_regions:
             for handler in self.handlers:
-                tasks.append(handler.async_scan_region(self.session_manager, credentials, region))
+                svc_name = HANDLER_SERVICE_MAP.get(type(handler).__name__)
                 
-                
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+                # If the service is NOT available in this region, skip making the network call entirely
+                if svc_name and region not in service_regions.get(svc_name, set()):
+                    continue
+                    
+                async def scan_wrapper(h=handler, r=region):
+                    try:
+                        return await h.async_scan_region(self.session_manager, credentials, r, executor=_SCANNER_EXECUTOR)
+                    except Exception as e:
+                        return e
+                        
+                tasks.append(scan_wrapper())
         
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # 3. Filter exceptions and flatten valid results
         for res in results:
             if isinstance(res, Exception):
                 logger.error(f"[AWS Scanner] Worker thread raised unhandled exception: {res}")
-            else:
+            elif isinstance(res, list):
                 all_resources.extend(res)
                     
+        
         logger.info(f"[AWS Scanner] Parallel scan complete. Discovered {len(all_resources)} total resources.")
         return all_resources
 

@@ -17,9 +17,8 @@ class ControlResourceBase(BaseModel):
     tags_json: Optional[str] = None
     parent_resource_id: Optional[str] = None
     
-    is_automation_enabled: bool = False
-    schedule_pattern: str = "daily"
-    owner_email: Optional[str] = None
+    is_automation_enabled: bool
+    disabled_dates: Optional[list[str]] = []
     start_time: str = "10:00"
     stop_time: str = "21:00"
     timezone: str = "Asia/Kolkata"
@@ -38,9 +37,8 @@ class ScheduleUpdatePayload(BaseModel):
     service_type: str
     account_name: str
     region: str = "us-east-1"
-    is_automation_enabled: bool = True
-    schedule_pattern: str = "daily"
-    owner_email: Optional[str] = None
+    is_automation_enabled: bool
+    disabled_dates: Optional[list[str]] = []
     start_time: str = "10:00"
     stop_time: str = "21:00"
     timezone: str = "Asia/Kolkata"

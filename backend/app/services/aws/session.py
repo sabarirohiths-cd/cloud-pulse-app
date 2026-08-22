@@ -8,14 +8,20 @@ from botocore.exceptions import BotoCoreError, ClientError
 BOTO3_CONFIG = Config(
     retries={
         "max_attempts": 10,
-        "mode": "standard"
+        "mode": "adaptive"
     },
     max_pool_connections=50
 )
 
 class AWSSessionManager:
+    def __init__(self):
+        # Cache the core botocore session globally. 
+        # This prevents 187 threads from simultaneously reading and parsing AWS JSON schemas from disk,
+        # which completely locks the Python GIL for 2 minutes!
+        self._bc_session = botocore.session.get_session()
+
     def create_session(self, credentials: dict, region: str = None):
-        bc_session = botocore.session.get_session()
+        bc_session = self._bc_session
         if credentials.get('aws_access_key_id') or credentials.get('assume_role_arn'):
             bc_session.set_config_variable('credentials_file', os.devnull)
 
@@ -57,9 +63,15 @@ class AWSSessionManager:
                 params['aws_session_token'] = credentials.get('aws_session_token', '').strip()
             session = boto3.Session(**params)
             
-        # We don't attach config to Session directly in boto3, we attach it to clients created from the session.
-        # But we can override the session's client creation method, or just enforce it on creation.
-        # To make it globally applied for clients created from this session:
+        # Monkey-patch session.client to globally inject Adaptive Rate Limiting config
+        # into ALL clients instantiated by any Handler using this session
+        original_client = session.client
+        def custom_client(service_name, **kwargs):
+            if 'config' not in kwargs:
+                kwargs['config'] = BOTO3_CONFIG
+            return original_client(service_name, **kwargs)
+        session.client = custom_client
+        
         return session
         
     def get_client(self, session, service_name: str, region_name: str = None):

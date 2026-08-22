@@ -42,22 +42,33 @@ class RedshiftHandler(BaseDirectPowerHandler):
     def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         resources = []
         client = session.client('redshift', region_name=region)
-        clusters_res = client.describe_clusters()
-        for cluster in clusters_res.get('Clusters', []):
-            tags_list = cluster.get('Tags', [])
-            tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
+        
+        marker = None
+        while True:
+            params = {}
+            if marker:
+                params['Marker'] = marker
+                
+            clusters_res = client.describe_clusters(**params)
+            for cluster in clusters_res.get('Clusters', []):
+                tags_list = cluster.get('Tags', [])
+                tags_dict = {t.get('Key'): t.get('Value') for t in tags_list}
 
-            resources.append({
-                'resource_id': cluster['ClusterIdentifier'],
-                'resource_name': cluster['ClusterIdentifier'],
-                'cloud_provider': 'aws',
-                'region': region,
-                'service_type': ServiceType.REDSHIFT.value,
-                'control_type': ControlType.DIRECT_POWER.value,
-                'status': normalize_redshift_status(cluster.get('ClusterStatus', 'unknown')),
-                'instance_spec': cluster.get('NodeType', 'unknown'),
-                'tags': tags_dict,
-                'last_synced_at': datetime.now(timezone.utc)
-            })
+                resources.append({
+                    'resource_id': cluster['ClusterIdentifier'],
+                    'resource_name': cluster['ClusterIdentifier'],
+                    'cloud_provider': 'aws',
+                    'region': region,
+                    'service_type': ServiceType.REDSHIFT.value,
+                    'control_type': ControlType.DIRECT_POWER.value,
+                    'status': normalize_redshift_status(cluster.get('ClusterStatus', 'unknown')),
+                    'instance_spec': cluster.get('NodeType', 'unknown'),
+                    'tags': tags_dict,
+                    'last_synced_at': datetime.now(timezone.utc)
+                })
+                
+            marker = clusters_res.get('Marker')
+            if not marker:
+                break
 
         return resources

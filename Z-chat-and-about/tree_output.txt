@@ -1,6 +1,13 @@
-Cloud-pulse-control-module/
+.
 ├── .gitignore
+├── Z-chat-and-about
+│   ├── memory.md
+│   ├── project_architecture.md
+│   ├── tree_dirs.txt
+│   └── tree_output.txt
 ├── backend
+│   ├── .env
+│   ├── __init__.py
 │   ├── app
 │   │   ├── __init__.py
 │   │   ├── api
@@ -20,12 +27,25 @@ Cloud-pulse-control-module/
 │   │   ├── models
 │   │   │   ├── __init__.py
 │   │   │   ├── config
+│   │   │   │   └── config_cloud_account.py
 │   │   │   ├── control
+│   │   │   │   ├── control_action_log.py
+│   │   │   │   └── control_resource.py
 │   │   │   ├── inventory
+│   │   │   │   ├── inventory_change.py
+│   │   │   │   ├── inventory_resource.py
+│   │   │   │   └── inventory_snapshot.py
 │   │   │   └── system
+│   │   │       ├── __init__.py
+│   │   │       └── system_notification.py
 │   │   ├── monitoring
-│   │   │   ├── flow
 │   │   │   ├── base_monitor.py
+│   │   │   ├── flow
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── asg_flow.py
+│   │   │   │   ├── beanstalk_flow.py
+│   │   │   │   ├── ecs_flow.py
+│   │   │   │   └── eks_flow.py
 │   │   │   └── state_monitor.py
 │   │   ├── repositories
 │   │   │   ├── control_repository.py
@@ -33,15 +53,25 @@ Cloud-pulse-control-module/
 │   │   ├── schemas
 │   │   │   ├── __init__.py
 │   │   │   ├── config
+│   │   │   │   └── config_cloud_account.py
 │   │   │   ├── control
+│   │   │   │   ├── control_action_log.py
+│   │   │   │   └── control_resource.py
 │   │   │   ├── inventory
+│   │   │   │   ├── inventory_change.py
+│   │   │   │   ├── inventory_resource.py
+│   │   │   │   └── inventory_snapshot.py
 │   │   │   └── system
+│   │   │       ├── __init__.py
+│   │   │       └── system_notification.py
 │   │   └── services
+│   │       ├── action_logger.py
 │   │       ├── aws
 │   │       │   ├── __init__.py
 │   │       │   ├── discovery
 │   │       │   │   ├── __init__.py
 │   │       │   │   ├── asg_discovery.py
+│   │       │   │   ├── beanstalk_discovery.py
 │   │       │   │   ├── dynamic_discovery.py
 │   │       │   │   ├── ecs_discovery.py
 │   │       │   │   └── eks_discovery.py
@@ -59,7 +89,9 @@ Cloud-pulse-control-module/
 │   │       │   │   │   └── workspaces_handler.py
 │   │       │   │   └── scale_to_zero
 │   │       │   │       ├── __init__.py
+│   │       │   │       ├── apprunner_handler.py
 │   │       │   │       ├── asg_handler.py
+│   │       │   │       ├── beanstalk_handler.py
 │   │       │   │       ├── ecs_handler.py
 │   │       │   │       └── eks_handler.py
 │   │       │   ├── scanner.py
@@ -69,54 +101,95 @@ Cloud-pulse-control-module/
 │   │       │   ├── __init__.py
 │   │       │   ├── control
 │   │       │   │   └── __init__.py
-│   │       │   └── service.py
+│   │       │   ├── scanner.py
+│   │       │   ├── service.py
+│   │       │   └── session.py
+│   │       ├── base_handler.py
+│   │       ├── base_service.py
+│   │       ├── control_service.py
 │   │       ├── gcp
 │   │       │   ├── __init__.py
 │   │       │   ├── control
 │   │       │   │   └── __init__.py
-│   │       │   └── service.py
-│   │       ├── base_handler.py
-│   │       ├── base_service.py
-│   │       ├── control_service.py
+│   │       │   ├── scanner.py
+│   │       │   ├── service.py
+│   │       │   └── session.py
 │   │       ├── inventory_service.py
 │   │       ├── notifier.py
 │   │       └── sync_tracker.py
 │   ├── data
-│   │   ├── cloud_pulse_control.db
-│   │   ├── cloud_pulse_control.db-shm
-│   │   └── cloud_pulse_control.db-wal
+│   │   ├── cloud_pulse.db
+│   │   ├── cloud_pulse.db-shm
+│   │   ├── cloud_pulse.db-wal
+│   │   └── cloud_pulse.db.bak
 │   ├── main.py
 │   └── requirements.txt
-├── frontend
-│   ├── package-lock.json
-│   ├── package.json
-│   ├── public
-│   │   ├── aws-logo.svg
-│   │   ├── azure-logo.svg
-│   │   ├── gcp-logo.svg
-│   │   └── index.html
-│   ├── src
-│   │   ├── App.js
-│   │   ├── api
-│   │   │   ├── api.js
-│   │   │   ├── config.js
-│   │   │   ├── control.js
-│   │   │   └── inventory.js
-│   │   ├── components
-│   │   │   └── ui
-│   │   │       ├── CustomSelect.js
-│   │   │       └── FilterBar.js
-│   │   ├── index.css
-│   │   ├── index.js
-│   │   └── pages
-│   │       ├── config
-│   │       │   └── ConfigPage.js
-│   │       └── control
-│   │           ├── ActionModal.js
-│   │           ├── ControlPage.js
-│   │           └── tabs
-│   │               ├── ActivityLogTab.js
-│   │               ├── OverviewTab.js
-│   │               └── ResourcesTab.js
-│   └── tailwind.config.js
-└──
+└── frontend
+    ├── .gitignore
+    ├── README.md
+    ├── package-lock.json
+    ├── package.json
+    ├── public
+    │   ├── aws-logo.svg
+    │   ├── azure-logo.svg
+    │   ├── favicon.ico
+    │   ├── gcp-logo.svg
+    │   ├── index.html
+    │   ├── manifest.json
+    │   └── robots.txt
+    ├── src
+    │   ├── App.js
+    │   ├── api
+    │   │   ├── api.js
+    │   │   ├── config.js
+    │   │   ├── control.js
+    │   │   └── inventory.js
+    │   ├── components
+    │   │   ├── charts
+    │   │   │   ├── ActivityHeatmap.js
+    │   │   │   └── CustomDonut.js
+    │   │   └── ui
+    │   │       ├── CustomSelect.js
+    │   │       ├── EmptyState.js
+    │   │       ├── FilterBar.js
+    │   │       ├── Kpi.js
+    │   │       ├── NotificationBell.js
+    │   │       ├── ResourceIcon.js
+    │   │       ├── ScrollToTopButton.js
+    │   │       └── TableSkeleton.js
+    │   ├── hooks
+    │   │   ├── useDynamicFilters.js
+    │   │   └── useResourcePolling.js
+    │   ├── index.css
+    │   ├── index.js
+    │   ├── pages
+    │   │   ├── config
+    │   │   │   └── ConfigPage.js
+    │   │   ├── control
+    │   │   │   ├── ActionModal.js
+    │   │   │   ├── ControlPage.js
+    │   │   │   ├── ControlResourceDetailModal.js
+    │   │   │   └── tabs
+    │   │   │       ├── ActivityLogTab.js
+    │   │   │       ├── OverviewTab.js
+    │   │   │       ├── ResourcesTab.js
+    │   │   │       ├── SettingsTab.js
+    │   │   │       └── components
+    │   │   │           ├── ResourceTableRow.js
+    │   │   │           └── SettingsRow.js
+    │   │   └── inventory
+    │   │       ├── InventoryPage.js
+    │   │       ├── ResourceDetailModal.js
+    │   │       ├── TopFilters.js
+    │   │       └── tabs
+    │   │           ├── ChangesTab.js
+    │   │           ├── DeletedTab.js
+    │   │           ├── OverviewTab.js
+    │   │           └── ResourcesTab.js
+    │   └── utils
+    │       ├── cloud-strategies.js
+    │       ├── dateFormatter.js
+    │       ├── resource-tree.js
+    │       ├── syncManager.js
+    │       └── ui-utils.js
+    └── tailwind.config.js

@@ -132,7 +132,7 @@ export const ResourceTableRow = React.memo(({
               className="px-2.5 py-1 text-[10px] font-medium text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded cursor-help whitespace-nowrap"
               title="This is a structural parent container. Expand this row to schedule or control its underlying compute resources."
             >
-              Expand to Control {r.service_type === 'BEANSTALK' ? 'Application' : 'Cluster'}
+              Expand to {r.service_type === 'BEANSTALK' ? 'Control Application' : r.service_type === 'ASG' ? 'View Instances' : 'Control Cluster'}
             </span>
           )}
         </div>

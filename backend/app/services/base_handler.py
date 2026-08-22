@@ -87,10 +87,15 @@ class BaseDirectPowerHandler(ControlResourceHandler):
     Base class for resources that support Direct Power Control (Native Start/Stop).
     Handles boilerplate Boto3 async dispatching and error catching.
     """
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    async def async_scan_region(self, session_manager, credentials: dict, region: str, executor=None) -> List[Dict[str, Any]]:
+        import random
+        await asyncio.sleep(random.uniform(0.1, 1.5))
         def _scan():
             session = session_manager.create_session(credentials, region)
             return self._run_with_error_handling(self._execute_scan_region, "list", None, session, region)
+        if executor:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(executor, _scan)
         return await asyncio.to_thread(_scan)
 
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
@@ -138,16 +143,21 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
     Base class for resources that are scaled to zero (e.g. ASG, ECS).
     Maintains capacity state using saved_config JSON.
     """
-    async def async_scan_region(self, session_manager, credentials: dict, region: str) -> List[Dict[str, Any]]:
+    async def async_scan_region(self, session_manager, credentials: dict, region: str, executor=None) -> List[Dict[str, Any]]:
+        import random
+        await asyncio.sleep(random.uniform(0.1, 1.5))
         def _scan():
             session = session_manager.create_session(credentials, region)
             return self._run_with_error_handling(self._execute_scan_region, "list", None, session, region)
+        if executor:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(executor, _scan)
         return await asyncio.to_thread(_scan)
 
     async def get_state(self, session_manager, credentials: dict, region: str, native_id: str, **kwargs) -> str:
         def _get():
             session = session_manager.create_session(credentials, region)
-            return self._run_with_error_handling(self._execute_get_state, "state", None, session, native_id, **kwargs)
+            return self._run_with_error_handling(self._execute_get_state, "state", None, session, native_id, region=region, **kwargs)
         return await asyncio.to_thread(_get)
 
     async def start(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -158,7 +168,7 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
         def _start():
             session = session_manager.create_session(credentials, region)
             success = {"status": "success", "action": "START", "resource_id": native_id, "message": "Successfully initiated SCALE_TO_ORIGINAL sequence."}
-            return self._run_with_error_handling(self._execute_start, "dict", success, session, native_id, saved_config, **kwargs)
+            return self._run_with_error_handling(self._execute_start, "dict", success, session, native_id, saved_config, region=region, **kwargs)
         return await asyncio.to_thread(_start)
 
     async def stop(self, session_manager, credentials: dict, region: str, native_id: str, saved_config: str = None, **kwargs) -> dict:
@@ -173,7 +183,7 @@ class BaseScaleToZeroHandler(ControlResourceHandler):
                 if new_saved_config:
                     res["saved_config_json"] = new_saved_config
                 return res
-            return self._run_with_error_handling(self._execute_stop, "dict", success_fn, session, native_id, **kwargs)
+            return self._run_with_error_handling(self._execute_stop, "dict", success_fn, session, native_id, region=region, **kwargs)
         return await asyncio.to_thread(_stop)
 
     @abstractmethod

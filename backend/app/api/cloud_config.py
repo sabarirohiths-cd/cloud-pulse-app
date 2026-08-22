@@ -14,6 +14,7 @@ class ConfigCloudAccountCreate(BaseModel):
     account_name: str
     default_region: str = "global"
     credentials: dict
+    active_modules: str = "inventory,control"
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_config(payload: ConfigCloudAccountCreate, db: AsyncSession = Depends(get_db)):
@@ -24,7 +25,8 @@ async def create_config(payload: ConfigCloudAccountCreate, db: AsyncSession = De
         account_name=payload.account_name,
         default_region=payload.default_region,
         encrypted_credentials=encrypted_str,
-        verified=False
+        verified=False,
+        active_modules=payload.active_modules
     )
     db.add(db_config)
     await db.commit()
@@ -46,7 +48,8 @@ async def list_configs(db: AsyncSession = Depends(get_db)):
             "verified": c.verified,
             "auto_sync_enabled": c.auto_sync_enabled,
             "auto_sync_time": c.auto_sync_time,
-            "auto_sync_timezone": c.auto_sync_timezone
+            "auto_sync_timezone": c.auto_sync_timezone,
+            "active_modules": getattr(c, "active_modules", "inventory,control")
         }
         for c in configs
     ]
@@ -69,6 +72,28 @@ async def delete_config(config_id: int, db: AsyncSession = Depends(get_db)):
     
     await db.commit()
     return {"status": "success", "message": "Deleted config (dashboard data retained)"}
+
+
+class ConfigCloudAccountUpdate(BaseModel):
+    account_name: str | None = None
+    default_region: str | None = None
+    active_modules: str | None = None
+
+@router.patch("/{config_id}")
+async def update_config(config_id: int, payload: ConfigCloudAccountUpdate, db: AsyncSession = Depends(get_db)):
+    db_config = await db.get(ConfigCloudAccount, config_id)
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Configuration target not found")
+        
+    if payload.account_name is not None:
+        db_config.account_name = payload.account_name
+    if payload.default_region is not None:
+        db_config.default_region = payload.default_region
+    if payload.active_modules is not None:
+        db_config.active_modules = payload.active_modules
+        
+    await db.commit()
+    return {"status": "success", "message": "Config updated successfully"}
 
 
 @router.post("/{config_id}/verify")

@@ -10,8 +10,10 @@ export function useResourcePolling(resources, setResources) {
       );
   
       if (transitioningResources.length === 0) return;
+      
+      const uniqueResources = Array.from(new Map(transitioningResources.map(r => [r.resource_id, r])).values());
   
-      transitioningResources.forEach(async (r) => {
+      uniqueResources.forEach(async (r) => {
         try {
           const liveData = await getDbState(r.resource_id);
   

@@ -9,7 +9,6 @@ class ServiceType(str, enum.Enum):
     AURORA = "AURORA"
     DOCUMENTDB = "DOCUMENTDB"
     REDSHIFT = "REDSHIFT"
-    
     SAGEMAKER = "SAGEMAKER"
     WORKSPACES = "WORKSPACES"
     ASG = "ASG"
@@ -47,8 +46,7 @@ class ControlResource(Base):
     
     # Scheduling fields
     is_automation_enabled = Column(Boolean, default=False)
-    schedule_pattern = Column(String, default="daily") # daily, mon_fri, custom
-    owner_email = Column(String, nullable=True)
+    disabled_dates = Column(Text, nullable=True) # JSON array of disabled dates
     start_time = Column(String, default="10:00")
     stop_time = Column(String, default="21:00")
     timezone = Column(String, default="Asia/Kolkata")

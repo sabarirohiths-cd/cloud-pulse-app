@@ -31,6 +31,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
         return "UNKNOWN"
 
     def _execute_stop(self, session, native_id: str, **kwargs):
+        region = kwargs.get('region')
         ecs = session.client('ecs')
         autoscaling = session.client('autoscaling')
         
@@ -66,7 +67,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                     break
                     
         if not is_fargate:
-            has_managed_cp, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cluster_name, service_name)
+            has_managed_cp, managed_asgs, unmanaged_asgs = discover_asg_and_cp_status(session, cluster_name, service_name, region=region)
         else:
             has_managed_cp, managed_asgs, unmanaged_asgs = False, [], []
         
@@ -254,7 +255,7 @@ class ECSScaleToZeroHandler(BaseScaleToZeroHandler):
                                 asg_name = None
                                 if not is_fargate:
                                     try:
-                                        has_cp, managed, unmanaged = discover_asg_and_cp_status(session, cluster_name, svc_name)
+                                        has_cp, managed, unmanaged = discover_asg_and_cp_status(session, cluster_name, svc_name, region=region)
                                         all_asgs = managed + unmanaged
                                         if all_asgs:
                                             asg_name = all_asgs[0]

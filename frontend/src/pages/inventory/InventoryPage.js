@@ -105,7 +105,8 @@ export default function InventoryPage() {
 
   useEffect(() => {
     apiClient.get('/cloud-config/').then(res => {
-      const accs = res.data || [];
+      let accs = res.data || [];
+      accs = accs.filter(a => (a.active_modules ?? 'inventory,control').includes('inventory'));
       setAccounts(accs);
       if (accs.length > 0) {
         const savedAccountName = localStorage.getItem('pulse_inventory_account');
