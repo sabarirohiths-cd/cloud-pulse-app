@@ -73,8 +73,7 @@ async def save_schedule(payload: ScheduleUpdatePayload, db: AsyncSession = Depen
         raise HTTPException(status_code=404, detail="Resource not found")
     else:
         sched.is_automation_enabled = payload.is_automation_enabled
-        sched.schedule_pattern = payload.schedule_pattern
-        sched.owner_email = payload.owner_email
+        sched.disabled_dates = json.dumps(payload.disabled_dates)
         sched.start_time = payload.start_time
         sched.stop_time = payload.stop_time
         sched.timezone = payload.timezone

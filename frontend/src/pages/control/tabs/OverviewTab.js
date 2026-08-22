@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Power, Clock, Server, Trash2, Activity, Play, Square, CalendarClock, History } from 'lucide-react';
 import { Kpi } from '../../../components/ui/Kpi';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { CustomDonut } from '../../../components/charts/CustomDonut';
 import { listAuditLogs } from '../../../api/control';
 import { formatDynamicLocalTime } from '../../../utils/dateFormatter';

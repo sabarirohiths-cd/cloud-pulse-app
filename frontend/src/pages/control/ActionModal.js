@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Power, Server, Database } from 'lucide-react';
+import { ScheduleCalendar } from './components/ScheduleCalendar';
 
 export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm }) {
   const [automationEnabled, setAutomationEnabled] = useState(true);
-  const [schedulePattern, setSchedulePattern] = useState('daily');
-  const [ownerEmail, setOwnerEmail] = useState('');
+  const [disabledDates, setDisabledDates] = useState([]);
   const [startTime, setStartTime] = useState('10:00');
   const [stopTime, setStopTime] = useState('21:00');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
@@ -16,7 +16,7 @@ export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await onConfirm({ mode, resource, automationEnabled, schedulePattern, ownerEmail, startTime, stopTime, timezone });
+      await onConfirm({ mode, resource, automationEnabled, startTime, stopTime, timezone, disabledDates });
     } finally {
       setIsSubmitting(false);
     }
@@ -25,11 +25,17 @@ export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm
   useEffect(() => {
     if (resource?.schedule) {
       setAutomationEnabled(resource.schedule.is_automation_enabled ?? true);
-      setSchedulePattern(resource.schedule.schedule_pattern || 'daily');
-      setOwnerEmail(resource.schedule.owner_email || '');
       setStartTime(resource.schedule.start_time || '10:00');
       setStopTime(resource.schedule.stop_time || '21:00');
       setTimezone(resource.schedule.timezone || 'Asia/Kolkata');
+      
+      let parsedDisabled = [];
+      try {
+        if (resource.schedule.disabled_dates) {
+            parsedDisabled = typeof resource.schedule.disabled_dates === 'string' ? JSON.parse(resource.schedule.disabled_dates) : resource.schedule.disabled_dates;
+        }
+      } catch (e) {}
+      setDisabledDates(parsedDisabled);
     }
   }, [resource]);
 
@@ -89,25 +95,8 @@ export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm
                     animate={{ opacity: 1, y: 0 }} 
                     className="space-y-3"
                   >
-                    <div className="bg-[#161b22] p-3 rounded-lg border border-[#26262b] shadow-sm">
-                      <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 block">Schedule Pattern</label>
-                      <div className="flex bg-[#0a0a0f] border border-[#26262b] p-1 rounded-md relative">
-                        <button 
-                          onClick={() => setSchedulePattern('daily')}
-                          className={`flex-1 py-1.5 text-[11px] font-bold rounded relative z-10 transition-colors ${schedulePattern === 'daily' ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                          {schedulePattern === 'daily' && <motion.div layoutId="patternTab" className="absolute inset-0 bg-white rounded shadow-sm z-[-1]" />}
-                          Daily
-                        </button>
-                        <button 
-                          onClick={() => setSchedulePattern('mon_fri')}
-                          className={`flex-1 py-1.5 text-[11px] font-bold rounded relative z-10 transition-colors ${schedulePattern === 'mon_fri' ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                          {schedulePattern === 'mon_fri' && <motion.div layoutId="patternTab" className="absolute inset-0 bg-white rounded shadow-sm z-[-1]" />}
-                          Mon - Fri
-                        </button>
-                      </div>
-                    </div>
+
+                    <ScheduleCalendar disabledDates={disabledDates} setDisabledDates={setDisabledDates} />
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-[#161b22] p-3 rounded-lg border border-[#26262b] shadow-sm">
@@ -120,19 +109,7 @@ export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm
                       </div>
                     </div>
 
-                    <div className="bg-[#161b22] p-3 rounded-lg border border-[#26262b] shadow-sm">
-                      <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1.5 block">Owner Email (Optional)</label>
-                      <input 
-                        type="email" 
-                        placeholder="team@company.com" 
-                        value={ownerEmail} 
-                        onChange={e => setOwnerEmail(e.target.value)} 
-                        className="w-full text-[11px] font-medium bg-[#0a0a0f] shadow-inner border border-[#26262b] rounded px-2.5 py-1.5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 transition-colors"
-                      />
-                      <p className="text-[11px] text-zinc-500 mt-2 font-medium">
-                        Emails will be sent 1 hour before shutdown, allowing owners to extend or skip.
-                      </p>
-                    </div>
+
                   </motion.div>
                 )}
               </div>

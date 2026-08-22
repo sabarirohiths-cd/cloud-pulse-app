@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { ResourceIcon } from '../../../../components/ui/ResourceIcon';
+import { ResourceIcon } from '../../components/ui/ResourceIcon';
 
 export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
   const isExpandable = r._isExpandable;

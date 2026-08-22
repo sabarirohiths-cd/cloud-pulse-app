@@ -1,19 +1,19 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, text, func, case, and_, or_
 from typing import Optional
-from app.models import ControlResource
+from app.models import ControlResource, ConfigCloudAccount
 
 class ControlRepository:
     
     @staticmethod
     async def get_all_schedules(db: AsyncSession):
-        stmt = select(ControlResource)
+        stmt = select(ControlResource).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(ConfigCloudAccount.active_modules.like("%control%")).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(ConfigCloudAccount.active_modules.like("%control%"))
         res = await db.execute(stmt)
         return res.scalars().all()
 
     @staticmethod
     async def get_dashboard_summary(db: AsyncSession, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None, service_type: Optional[str] = None, status: Optional[str] = None):
-        conditions = []
+        conditions = [ControlResource.is_visible == True]
         
         # DYNAMIC: Exclude ONLY non-actionable parent clusters (like ECS Clusters, Beanstalk Apps) from the count.
         # Actionable parents like ASGs and Beanstalk Environments (which can be STOPPED/RUNNING) should be counted.
@@ -54,17 +54,17 @@ class ControlRepository:
             func.sum(case((ControlResource.status == 'STOPPED', 1), else_=0)),
             func.sum(case((ControlResource.status == 'TERMINATED', 1), else_=0)),
             func.sum(case((ControlResource.is_automation_enabled == True, 1), else_=0))
-        ).where(and_(*conditions) if conditions else True)
+        ).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(and_(*conditions) if conditions else True).where(ConfigCloudAccount.active_modules.like("%control%"))
             
         res = await db.execute(stmt)
         row = res.first()
         
-        type_stmt = select(ControlResource.service_type, func.count()).where(and_(*conditions) if conditions else True).group_by(ControlResource.service_type)
+        type_stmt = select(ControlResource.service_type, func.count()).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(and_(*conditions) if conditions else True).where(ConfigCloudAccount.active_modules.like("%control%")).group_by(ControlResource.service_type)
         type_res = await db.execute(type_stmt)
         type_breakdown = [{"type": t, "count": c} for t, c in type_res.all()]
         type_breakdown.sort(key=lambda x: x["count"], reverse=True)
         
-        reg_stmt = select(ControlResource.region, func.count()).where(and_(*conditions) if conditions else True).group_by(ControlResource.region)
+        reg_stmt = select(ControlResource.region, func.count()).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(and_(*conditions) if conditions else True).where(ConfigCloudAccount.active_modules.like("%control%")).group_by(ControlResource.region)
         reg_res = await db.execute(reg_stmt)
         region_breakdown = [{"region": r, "count": c} for r, c in reg_res.all() if r]
         
@@ -80,7 +80,7 @@ class ControlRepository:
 
     @staticmethod
     async def get_filtered_resources(db: AsyncSession, limit: int, offset: int, show_hidden: bool, account_name: Optional[str] = None, provider: Optional[str] = None, region: Optional[str] = None, tag: Optional[str] = None):
-        stmt = select(ControlResource)
+        stmt = select(ControlResource).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(ConfigCloudAccount.active_modules.like("%control%"))
         
         if not show_hidden:
             stmt = stmt.where(ControlResource.is_visible == True)
@@ -111,12 +111,12 @@ class ControlRepository:
         all_parent_ids = resource_ids.union(missing_parents)
         
         if missing_parents:
-            parent_stmt = select(ControlResource).where(ControlResource.resource_id.in_(missing_parents))
+            parent_stmt = select(ControlResource).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(ConfigCloudAccount.active_modules.like("%control%")).where(ControlResource.resource_id.in_(missing_parents))
             parent_res = await db.execute(parent_stmt)
             schedules.extend(parent_res.scalars().all())
             
         if all_parent_ids:
-            child_stmt = select(ControlResource).where(ControlResource.parent_resource_id.in_(all_parent_ids))
+            child_stmt = select(ControlResource).join(ConfigCloudAccount, ControlResource.account_name == ConfigCloudAccount.account_name).where(ConfigCloudAccount.active_modules.like("%control%")).where(ControlResource.parent_resource_id.in_(all_parent_ids))
             if not show_hidden:
                 child_stmt = child_stmt.where(ControlResource.is_visible == True)
                 
@@ -165,21 +165,30 @@ class ControlRepository:
         params = {}
         
         if account_name and account_name != 'All Accounts':
-            where_clause += " AND account_name = :account"
+            where_clause += " AND r.account_name = :account"
             params['account'] = account_name
         if provider:
-            where_clause += " AND cloud_provider = :provider"
+            where_clause += " AND r.cloud_provider = :provider"
             params['provider'] = provider.lower()
 
         # 1. Distinct Regions
-        region_stmt = text(f"SELECT DISTINCT region FROM control_resources WHERE {where_clause} AND region IS NOT NULL AND region != ''")
+        region_stmt = text(f"""
+            SELECT DISTINCT r.region 
+            FROM control_resources r
+            JOIN config_cloud_accounts c ON r.account_name = c.account_name
+            WHERE {where_clause} AND r.region IS NOT NULL AND r.region != ''
+            AND c.active_modules LIKE '%control%'
+        """)
         regions = [r[0] for r in (await db.execute(region_stmt, params)).all()]
 
         # 2. Distinct Tags using SQLite JSON extraction
         tags_stmt = text(f"""
             SELECT DISTINCT j.key 
-            FROM control_resources r, json_each(r.tags_json) j
+            FROM control_resources r
+            JOIN config_cloud_accounts c ON r.account_name = c.account_name,
+            json_each(r.tags_json) j
             WHERE {where_clause} AND r.tags_json IS NOT NULL AND r.tags_json != '{{}}'
+            AND c.active_modules LIKE '%control%'
         """)
         tags = [r[0] for r in (await db.execute(tags_stmt, params)).all()]
                 

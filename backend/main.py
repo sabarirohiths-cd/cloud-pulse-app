@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.monitoring.state_monitor import recover_orphaned_transitions
 from app.core.scheduler import run_control_scheduler
-from app.api import cloud_config, control, actions, inventory, notifications
+from app.api import cloud_config, control, inventory, notifications
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(cloud_config.router, prefix=settings.API_V1_STR)
 app.include_router(control.router, prefix=settings.API_V1_STR)
-app.include_router(actions.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(notifications.router, prefix=settings.API_V1_STR)
 

@@ -8,7 +8,6 @@ from app.core.database import SessionLocal
 from app.models import ControlResource, ConfigCloudAccount, ControlActionLog
 from app.core.security import decrypt_credentials
 from app.services.control_service import control_service
-from app.services.notifier import notifier_service
 from app.services.action_logger import log_control_action
 
 logging.basicConfig(level=logging.INFO)
@@ -48,32 +47,9 @@ async def evaluate_resource(session, sched: ControlResource):
         should_be_running = is_time_between(sched.start_time, sched.stop_time, now)
         
         # 2.5 Schedule Pattern evaluation
-        if sched.schedule_pattern == 'mon_fri':
-            # 0=Monday, 6=Sunday
-            if now.weekday() >= 5:
-                should_be_running = False
                 
         target_action = 'START' if should_be_running else 'STOP'
 
-        # 3. Pre-warning notification logic (1 hour before shutdown)
-        if should_be_running:
-            stop_time_parsed = datetime.strptime(sched.stop_time, "%H:%M").time()
-            stop_dt = datetime.combine(now.date(), stop_time_parsed).replace(tzinfo=tz)
-            
-            # If over midnight and current time is before midnight but stop time is after
-            if stop_time_parsed < now.time():
-                stop_dt += timedelta(days=1)
-                
-            time_until_stop = (stop_dt - now).total_seconds()
-            
-            # If within 60-65 mins of stopping, send warning
-            if 3600 <= time_until_stop <= 3900:
-                logger.info(f"[{sched.resource_id}] Sending pre-shutdown warning.")
-                urls = await notifier_service.send_pre_shutdown_warning(
-                    sched.resource_id, sched.service_type, sched.account_name, sched.stop_time
-                )
-                logger.info(f"[{sched.resource_id}] Pre-warning sent. Extend URL: {urls['extend_url']}")
-        
         # 4. Optimize AWS API calls
         is_db_running = sched.status in ['RUNNING', 'AVAILABLE']
         is_db_stopped = sched.status in ['STOPPED', 'PAUSED', 'TERMINATED']

@@ -31,11 +31,23 @@ class EC2Handler(BaseDirectPowerHandler):
 
     def _execute_start(self, session, native_id: str, **kwargs):
         client = session.client('ec2')
-        client.start_instances(InstanceIds=[native_id])
+        try:
+            client.start_instances(InstanceIds=[native_id])
+        except ClientError as e:
+            err_msg = e.response.get('Error', {}).get('Message', str(e))
+            if 'volume attached at root' in err_msg:
+                raise ValueError(f"Instance {native_id} is instance-store backed and cannot be started/stopped (only rebooted or terminated).")
+            raise ValueError(f"Failed to start EC2 instance: {err_msg}")
 
     def _execute_stop(self, session, native_id: str, **kwargs):
         client = session.client('ec2')
-        client.stop_instances(InstanceIds=[native_id])
+        try:
+            client.stop_instances(InstanceIds=[native_id])
+        except ClientError as e:
+            err_msg = e.response.get('Error', {}).get('Message', str(e))
+            if 'volume attached at root' in err_msg:
+                raise ValueError(f"Instance {native_id} is instance-store backed and cannot be stopped (only rebooted or terminated).")
+            raise ValueError(f"Failed to stop EC2 instance: {err_msg}")
 
     def _execute_scan_region(self, session, region: str) -> List[Dict[str, Any]]:
         resources = []
