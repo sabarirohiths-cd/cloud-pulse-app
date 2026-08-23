@@ -1,31 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Cloud, Settings, Activity, Boxes, CloudCog, ChevronDown, ChevronRight } from 'lucide-react';
-import { listConfigs } from '../../api/config';
+import { Cloud, Settings, Activity, Boxes, CloudCog, ChevronDown, ChevronRight, LogOut, User } from 'lucide-react';
 
 export function Sidebar() {
   const [provider, setProvider] = useState(localStorage.getItem('pulse_control_provider') || 'AWS');
-  const [verifiedConfigs, setVerifiedConfigs] = useState([]);
   const [controlExpanded, setControlExpanded] = useState(true);
   const [adminExpanded, setAdminExpanded] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  
-  useEffect(() => {
-    const fetchConfigs = async () => {
-      try {
-        const res = await listConfigs();
-        const configs = res.data.configs || [];
-        setVerifiedConfigs(configs.filter(c => c.verified && (c.active_modules ?? 'inventory,control').includes('control')));
-      } catch (err) {
-        console.error("Failed to fetch configs in Sidebar", err);
-      }
-    };
-    fetchConfigs();
-
-    window.addEventListener('app:config-changed', fetchConfigs);
-    return () => window.removeEventListener('app:config-changed', fetchConfigs);
-  }, []);
 
   const availableProviders = ['AWS', 'AZURE', 'GCP'];
 
@@ -124,6 +106,29 @@ export function Sidebar() {
           )}
         </div>
       </nav>
+
+      {/* User Profile / Logout */}
+      <div className="mt-auto border-t border-[#1e232b] p-4">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+            <User className="h-4 w-4 text-blue-400" />
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <p className="text-[13px] font-medium text-white truncate">Admin</p>
+            <p className="text-[11px] text-[#8b949e] truncate">admin@cloudpulse.local</p>
+          </div>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('cloud_pulse_token');
+              window.location.href = '/login';
+            }}
+            className="p-1.5 text-[#8b949e] hover:text-white hover:bg-[#1a1d24] rounded-md transition-colors"
+            title="Log out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

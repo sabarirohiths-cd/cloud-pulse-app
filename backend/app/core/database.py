@@ -28,6 +28,8 @@ async def init_db():
     from app.models.inventory.inventory_change import InventoryChange
     from app.models.inventory.inventory_snapshot import InventorySnapshot
     from app.models.system.system_notification import SystemNotification
+    from app.models.system.user import SystemUser
+    from app.core.security import get_password_hash
     
     async with engine.begin() as conn:
         await conn.execute(text("PRAGMA journal_mode=WAL;"))
@@ -48,6 +50,22 @@ async def init_db():
             pass
 
         await conn.run_sync(Base.metadata.create_all)
+        
+    async with SessionLocal() as db:
+        # Check if default admin exists
+        from sqlalchemy.future import select
+        result = await db.execute(select(SystemUser).limit(1))
+        if not result.scalars().first():
+            # Seed default admin user
+            admin_user = SystemUser(
+                username="admin",
+                email="admin@cloudpulse.local",
+                password_hash=get_password_hash("cd@12345"),
+                is_superuser=True
+            )
+            db.add(admin_user)
+            await db.commit()
+            print("Default admin user seeded. Username: admin | Password: cd@12345")
             
 async def get_db():
     async with SessionLocal() as session:

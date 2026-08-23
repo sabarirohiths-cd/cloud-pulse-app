@@ -13,6 +13,14 @@ export const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('cloud_pulse_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Intercept responses to cleanly handle backend downtime
 apiClient.interceptors.response.use(
   (response) => response,
@@ -26,8 +34,25 @@ apiClient.interceptors.response.use(
       // Return a clean error instead of the raw Axios trace
       return Promise.reject(new Error('Backend connection offline.'));
     }
+    // Handle Unauthorized
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('cloud_pulse_token');
+      // We can emit an event or dispatch if using Redux, but for now reload is simplest
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
     
     // Pass through other standard HTTP errors (like 400s or 500s)
     return Promise.reject(error);
   }
 );
+
+export const login = async (username, password) => {
+  const formData = new URLSearchParams();
+  formData.append('username', username);
+  formData.append('password', password);
+  return axios.post(`${API_BASE_URL}/auth/login`, formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  });
+};
