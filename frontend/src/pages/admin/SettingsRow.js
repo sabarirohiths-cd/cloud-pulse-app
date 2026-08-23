@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { ResourceIcon } from '../../components/ui/ResourceIcon';
 
-export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
+export function SettingsRow({ r, isGroupView, toggleRow, handleToggle, setDetailResource }) {
   const isExpandable = r._isExpandable;
   const isExpanded = r._isExpanded;
   const paddingLeft = r._level ? `${r._level * 24 + 16}px` : '16px';
@@ -34,7 +34,10 @@ export function SettingsRow({ r, isGroupView, toggleRow, handleToggle }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className={`text-[12px] font-semibold truncate ${r.is_visible ? 'text-zinc-100' : 'text-zinc-500'}`}>
+          <div 
+            className={`text-[12px] font-semibold truncate cursor-pointer hover:text-blue-400 hover:underline transition-colors ${r.is_visible ? 'text-zinc-100' : 'text-zinc-500'}`}
+            onClick={() => setDetailResource && setDetailResource(r)}
+          >
             {r.name}
           </div>
           <div className="flex items-center gap-2 mt-0.5">

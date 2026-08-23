@@ -33,3 +33,8 @@ export const editConfig = async (id, payload) => {
   const response = await apiClient.patch(`/cloud-config/${id}`, payload);
   return response.data;
 };
+
+export const updateCredentials = async (id, credentials) => {
+  const response = await apiClient.patch(`/cloud-config/${id}/credentials`, { credentials });
+  return response.data;
+};

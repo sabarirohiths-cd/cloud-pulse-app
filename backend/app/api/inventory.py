@@ -73,10 +73,44 @@ async def _background_inventory_sync(provider: str, config_id: int):
             await db.commit()
             return msg
     except Exception as e:
+        err_str = str(e)
         import traceback
         traceback.print_exc()
-        print(f"Background inventory sync failed: {e}")
-        return f"Failed: {str(e)}"
+        print(f"Background inventory sync failed: {err_str}")
+        
+        async with SessionLocal() as db:
+            if "Authentication failed" in err_str:
+                db_config = await db.get(ConfigCloudAccount, config_id)
+                if db_config:
+                    db_config.verified = False
+                    
+                    parts = err_str.split(":", 1)
+                    if len(parts) > 1:
+                        db_config.last_error = parts[1].strip()
+                    else:
+                        db_config.last_error = err_str
+                    
+                    from app.models.system.system_notification import SystemNotification
+                    notification = SystemNotification(
+                        title="Inventory Sync Failed",
+                        message=f"Authentication failed for {account_name}: {db_config.last_error}",
+                        type="ERROR",
+                        module="INVENTORY"
+                    )
+                    db.add(notification)
+                    await db.commit()
+            else:
+                from app.models.system.system_notification import SystemNotification
+                notification = SystemNotification(
+                    title="Inventory Sync Failed",
+                    message=f"Failed to sync {account_name}: {err_str}",
+                    type="ERROR",
+                    module="INVENTORY"
+                )
+                db.add(notification)
+                await db.commit()
+                
+        return f"Failed: {err_str}"
 
 @router.post("/sync")
 async def trigger_sync(

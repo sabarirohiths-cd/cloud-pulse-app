@@ -295,6 +295,7 @@ async def _background_control_sync(account_name: Optional[str], region: str = "a
             configs = res.scalars().all()
             for c in configs:
                 configs_to_process.append({
+                    "id": c.id,
                     "account_name": c.account_name,
                     "provider": c.provider,
                     "default_region": c.default_region,
@@ -482,14 +483,24 @@ async def _background_control_sync(account_name: Optional[str], region: str = "a
                     await db.commit()
                     
             except Exception as e:
+                err_str = str(e)
                 import traceback
                 traceback.print_exc()
                 print(f"[Backend Sync] Failed to sync account {config['account_name']}: {e}")
                 async with SessionLocal() as db:
+                    if "ExpiredToken" in err_str or "InvalidClientTokenId" in err_str or "InvalidAccessKeyId" in err_str:
+                        db_config = await db.get(ConfigCloudAccount, config["id"])
+                        if db_config:
+                            db_config.verified = False
+                            if "ExpiredToken" in err_str or ("InvalidClientTokenId" in err_str and creds.get("aws_session_token")):
+                                db_config.last_error = "AWS Session Token has expired or is invalid."
+                            else:
+                                db_config.last_error = "Invalid AWS Access Key ID."
+                                
                     from app.models.system.system_notification import SystemNotification
                     notification = SystemNotification(
                         title="Control Sync Failed",
-                        message=f"Failed to sync {config['account_name']}: {str(e)}",
+                        message=f"Failed to sync {config['account_name']}: {err_str}",
                         type="ERROR",
                         module="CONTROL"
                     )

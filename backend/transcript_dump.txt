@@ -1,9 +1,0 @@
-Created At: 2026-08-23T01:02:24+05:30
-Completed At: 2026-08-23T01:02:49+05:30
-
-				The command exited with code 0.
-				Output:
-				[('i-07b3ab70e1db07b51', 'STOPPED'), ('i-0ba5b26fafe9e0bf8', 'STOPPED'), ('cloudpulse-db-mysql', 'STOPPED'), ('cloudpulse-auroracluster-postgresql', 'STOPPED'), ('cloudpulse-test-asg', 'STOPPED'), ('asg-managed-test', 'STOPPED'), ('asg-unmanaged-test', 'STOPPED'), ('cloudpulse-ecs-test-cluster', 'ACTIVE'), ('arn:aws:ecs:ap-south-1:879343933129:service/cloudpulse-ecs-test-cluster/app-service-unmanaged', 'STOPPED'), ('arn:aws:ecs:ap-south-1:879343933129:service/cloudpulse-ecs-test-cluster/app-service-managed', 'STOPPED'), ('arn:aws:ecs:ap-south-1:879343933129:service/cloudpulse-ecs-test-cluster/web-service-fargate', 'STOPPED'), ('awseb-e-y2abddunar-stack-AWSEBAutoScalingGroup-PoDvqDoPj1N3', 'STOPPED'), ('Cloudpusle-EBS-Test-env', 'STOPPED'), ('Cloudpusle-EBS-Test', 'UNKNOWN'), ('i-003899285b4e81ebd', 'TERMINATED'), ('i-037e3c8f0f62c4bd7', 'TERMINATED')]
-
-
----BREAK---

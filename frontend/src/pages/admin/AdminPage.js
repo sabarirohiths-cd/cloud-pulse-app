@@ -11,11 +11,13 @@ import { buildResourceTree, buildResourceMap } from '../../utils/resource-tree';
 import { SettingsRow } from './SettingsRow';
 import { NotificationBell } from '../../components/ui/NotificationBell';
 import { AwsRegionSelect } from '../../components/ui/AwsRegionSelect';
+import { ControlResourceDetailModal } from '../control/ControlResourceDetailModal';
 
 export default function AdminPage() {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [detailResource, setDetailResource] = useState(null);
   
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -403,6 +405,7 @@ export default function AdminPage() {
                     isGroupView={true}
                     toggleRow={toggleRow}
                     handleToggle={handleToggle}
+                    setDetailResource={setDetailResource}
                   />
                 )}
               />
@@ -413,6 +416,13 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      
+      {detailResource && (
+        <ControlResourceDetailModal 
+          resource={detailResource} 
+          onClose={() => setDetailResource(null)} 
+        />
+      )}
     </>
   );
 }

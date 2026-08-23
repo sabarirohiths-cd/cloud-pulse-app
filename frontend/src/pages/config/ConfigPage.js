@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Clock, Cloud, MoreVertical, X, ShieldCheck, FileEdit, Server, Activity, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Clock, Cloud, MoreVertical, X, ShieldCheck, FileEdit, Server, Activity, CheckCircle2, Key } from 'lucide-react';
 import { toast } from 'sonner';
-import { listConfigs, createConfig, verifyConfig, deleteConfig, updateAutoSync, editConfig } from '../../api/config';
+import { listConfigs, createConfig, verifyConfig, deleteConfig, updateAutoSync, editConfig, updateCredentials } from '../../api/config';
 import { EmptyState } from '../../components/ui/EmptyState';
 
 const ProviderLogo = ({ provider, verified }) => {
@@ -51,6 +51,10 @@ export default function ConfigPage() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncConfigId, setSyncConfigId] = useState(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(null);
+  
+  const [showCredsModal, setShowCredsModal] = useState(false);
+  const [credsConfigId, setCredsConfigId] = useState(null);
+  const [credsForm, setCredsForm] = useState({ access_key: '', secret_key: '', session_token: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => { try { const r = await listConfigs(); setConfigs(r.data?.configs || []); } catch { } };
@@ -149,6 +153,29 @@ export default function ConfigPage() {
     } catch (e) { toast.error('Failed to save auto sync settings'); }
   };
 
+  const handleSaveCreds = async () => {
+    if (!credsForm.access_key && !credsForm.secret_key && !credsForm.session_token) {
+      toast.error('Please provide at least one credential to update');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateCredentials(credsConfigId, {
+        aws_access_key_id: credsForm.access_key,
+        aws_secret_access_key: credsForm.secret_key,
+        aws_session_token: credsForm.session_token
+      });
+      toast.success('Credentials updated');
+      setShowCredsModal(false);
+      setCredsForm({ access_key: '', secret_key: '', session_token: '' });
+      await load();
+    } catch (e) {
+      toast.error('Failed to update credentials');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 w-full pb-10 relative">
       {/* Page Header */}
@@ -195,10 +222,17 @@ export default function ConfigPage() {
                         Verified
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500"></span>
-                        Unverified
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-zinc-500"></span>
+                          Unverified
+                        </span>
+                        {c.last_error && c.last_error.toLowerCase().includes('expired') && (
+                          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded-full border border-rose-400/20">
+                            Token Expired
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   
@@ -247,8 +281,18 @@ export default function ConfigPage() {
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Verify Connection
                         </button>
                         <button onClick={() => { setActionMenuOpen(null); handleEditConfig(c); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
-                          <FileEdit className="h-3.5 w-3.5 text-blue-400" /> Edit
+                          <FileEdit className="h-3.5 w-3.5 text-blue-400" /> Edit Details
                         </button>
+                        {c.provider === 'aws' && (
+                          <button onClick={() => {
+                            setActionMenuOpen(null);
+                            setCredsConfigId(c.id);
+                            setCredsForm({ access_key: '', secret_key: '', session_token: '' });
+                            setShowCredsModal(true);
+                          }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
+                            <Key className="h-3.5 w-3.5 text-amber-400" /> Update Credentials
+                          </button>
+                        )}
                         <button onClick={() => {
                           setActionMenuOpen(null);
                           setSyncConfigId(c.id);
@@ -474,6 +518,41 @@ export default function ConfigPage() {
             <div className="flex gap-3 justify-end mt-8">
               <button onClick={() => setShowSyncModal(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors">Cancel</button>
               <button onClick={() => handleSaveSync(syncConfigId)} className="px-5 py-2 text-[13px] font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-900/20 transition-colors">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {showCredsModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCredsModal(false)} />
+          <div className="relative w-[480px] bg-[#12141a] border border-zinc-800 rounded-xl shadow-2xl p-6 animate-in zoom-in-95 duration-100">
+            <h3 className="text-sm font-semibold text-white mb-1">Update AWS Credentials</h3>
+            <p className="text-[12px] text-zinc-400 mb-6">Enter new values. Only the fields you fill in will be updated.</p>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] text-zinc-500 block mb-1">Access Key ID (optional)</label>
+                  <input value={credsForm.access_key} onChange={e => setCredsForm({ ...credsForm, access_key: e.target.value })} className="w-full text-[11px] bg-zinc-950 border border-zinc-700/80 rounded-lg px-2 py-1.5 text-white font-mono focus:border-amber-500 outline-none" placeholder="AKIAIOSFODNN7EXAMPLE" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 block mb-1">Secret Access Key (optional)</label>
+                  <input type="password" value={credsForm.secret_key} onChange={e => setCredsForm({ ...credsForm, secret_key: e.target.value })} className="w-full text-[11px] bg-zinc-950 border border-zinc-700/80 rounded-lg px-2 py-1.5 text-white font-mono focus:border-amber-500 outline-none" placeholder="••••••••" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-zinc-500 block mb-1">AWS Session Token (optional)</label>
+                <input type="password" value={credsForm.session_token} onChange={e => setCredsForm({ ...credsForm, session_token: e.target.value })} className="w-full text-[11px] bg-zinc-950 border border-zinc-700/80 rounded-lg px-2 py-1.5 text-white font-mono focus:border-amber-500 outline-none" placeholder="IQoJb3JpZ2luX2Vj..." />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-8">
+              <button onClick={() => setShowCredsModal(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors">Cancel</button>
+              <button onClick={handleSaveCreds} disabled={saving} className="px-5 py-2 text-[13px] font-medium bg-amber-500 text-black rounded-lg hover:bg-amber-400 shadow-lg shadow-amber-900/20 transition-colors disabled:opacity-50">
+                {saving ? 'Updating...' : 'Update Credentials'}
+              </button>
             </div>
           </div>
         </div>
