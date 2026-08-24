@@ -368,7 +368,7 @@ export default function AdminPage() {
           <div className="bg-[#111114] border border-[#1f1f24] rounded-2xl shadow-xl [overflow:clip]">
             <div className="flex items-center justify-between p-4 border-b border-zinc-800/80 bg-zinc-900/50">
               <div className="text-sm font-medium text-zinc-400">
-                {treeData.length} Resource{treeData.length !== 1 && 's'} Found
+                {filteredResources.length} Resource{filteredResources.length !== 1 && 's'} Found
               </div>
               <div className="flex items-center gap-2">
                 <button
