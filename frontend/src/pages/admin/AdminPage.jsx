@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { DatabaseOff, Search, CheckSquare, RefreshCw , EyeOff, Database } from 'lucide-react';
+import { Search, CheckSquare, RefreshCw , EyeOff, Database } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { EmptyState } from '../../components/ui/EmptyState';
