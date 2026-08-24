@@ -46,12 +46,17 @@ export const useControlSync = (account) => {
         prevSyncing.current = syncing;
     }, [syncing]);
 
-    const startControlSync = async (accountName, onSuccess, onError) => {
+    const startControlSync = async (accountName, region = 'all', onSuccess, onError) => {
         if (syncing) return;
         setSyncing(true);
         try {
-            await syncControlApi(accountName || account);
-            toast.info("Control sync started in the background...");
+            await syncControlApi(accountName || account, region);
+            const regionLabel = (!region || region === 'all')
+                ? 'All Regions'
+                : region.includes(',')
+                ? `${region.split(',').length} regions`
+                : region;
+            toast.info(`Control sync started for ${regionLabel}...`);
             if (onSuccess) onSuccess();
         } catch(e) {
             setSyncing(false);

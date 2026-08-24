@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { DatabaseOff, Search, CheckSquare, RefreshCw , EyeOff, Database } from 'lucide-react';
+import { Search, CheckSquare, RefreshCw, EyeOff, Database } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -10,11 +10,14 @@ import { useControlSync } from '../../utils/syncManager';
 import { buildResourceTree, buildResourceMap } from '../../utils/resource-tree';
 import { SettingsRow } from './SettingsRow';
 import { NotificationBell } from '../../components/ui/NotificationBell';
+import { AwsRegionSelect } from '../../components/ui/AwsRegionSelect';
+import { ControlResourceDetailModal } from '../control/ControlResourceDetailModal';
 
 export default function AdminPage() {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [detailResource, setDetailResource] = useState(null);
   
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -33,6 +36,7 @@ export default function AdminPage() {
   });
 
   const { syncing, startControlSync } = useControlSync(topFilters?.account);
+  const [syncRegions, setSyncRegions] = useState(['all']);
   const [verifiedConfigs, setVerifiedConfigs] = useState([]);
   const [availableRegions, setAvailableRegions] = useState(['All Regions']);
   const [availableTags, setAvailableTags] = useState(['All Tags']);
@@ -144,7 +148,8 @@ export default function AdminPage() {
   };
 
   const handleSync = () => {
-    startControlSync(topFilters.account, () => {
+    const regionParam = syncRegions.includes('all') ? 'all' : syncRegions.join(',');
+    startControlSync(topFilters.account, regionParam, () => {
       setHasMore(true);
       setOffset(0);
       loadResources(true);
@@ -305,14 +310,17 @@ export default function AdminPage() {
               </h1>
               <p className="text-[11px] text-[#a1a1aa] mt-1">Manage global resource visibility and run discovery syncs</p>
             </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <NotificationBell />
+              <div className="flex items-center gap-2">
+                <AwsRegionSelect value={syncRegions} onChange={setSyncRegions} disabled={syncing} />
+                <button onClick={handleSync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+                  <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <NotificationBell />
-            <button onClick={handleSync} disabled={syncing} className="flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold bg-transparent border border-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-              <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing...' : 'Sync Now'}
-            </button>
-          </div>
-        </div>
 
         <FilterBar
           filters={[
@@ -397,6 +405,7 @@ export default function AdminPage() {
                     isGroupView={true}
                     toggleRow={toggleRow}
                     handleToggle={handleToggle}
+                    setDetailResource={setDetailResource}
                   />
                 )}
               />
@@ -407,6 +416,13 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      
+      {detailResource && (
+        <ControlResourceDetailModal 
+          resource={detailResource} 
+          onClose={() => setDetailResource(null)} 
+        />
+      )}
     </>
   );
 }

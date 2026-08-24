@@ -90,7 +90,7 @@ class ControlExecutionRouter:
     async def sync_provider_resources(self, provider: str, credentials: dict, region: str = "all") -> list[dict]:
         if provider == 'aws':
             default_region = credentials.get('default_region', 'us-east-1')
-            raw_resources = await scan_all_resources_parallel(credentials, default_region)
+            raw_resources = await scan_all_resources_parallel(credentials, default_region, region)
             return raw_resources
         else:
             raise NotImplementedError(f"Sync operations for {provider} are planned for a future release.")

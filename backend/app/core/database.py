@@ -40,6 +40,12 @@ async def init_db():
             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_res_acc_stat ON inventory_resources(account_name, status, provider)"))
         except Exception:
             pass
+            
+        # Schema Migrations
+        try:
+            await conn.execute(text("ALTER TABLE config_cloud_accounts ADD COLUMN last_error VARCHAR"))
+        except Exception:
+            pass
 
         await conn.run_sync(Base.metadata.create_all)
             

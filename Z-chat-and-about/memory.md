@@ -136,3 +136,13 @@ When scaling up to test accounts with 8,000+ active resources, we encountered se
 - **Dashboard Parent Exclusion Overhaul:** Addressed a logical gap where the dashboard was unconditionally hiding ALL parent containers to prevent double-counting, which inadvertently hid actionable resources like ASGs and Beanstalk Environments (which act as parents to EC2s). Overhauled the SQL logic in `control_repository.py` and frontend flat-view filters to specifically target the parent's power capability. Now, only "non-actionable" logical clusters (status `ACTIVE` or `UNKNOWN`, like EKS/ECS clusters and Beanstalk Apps) are hidden, while actionable parents (status `STOPPED`/`RUNNING`) accurately populate the KPI metrics and dynamic filter dropdowns.
 - **Sync Analytics Transparency:** Patched the background sync API to eliminate user confusion regarding physical vs dashboard resource counts. The sync completion notification now dynamically reads the dashboard summary API to clearly decouple raw vs actionable items (e.g., "Successfully synced 14 total resources (12 actionable).").
 - **Profiling Teardown:** Removed temporary `time.perf_counter()` logging hooks and `sync_profile_temp.txt` file generation from `scanner.py` for a clean production configuration.
+
+### August 22, 2026 (Control Module Separation & Config Updates)
+- **Architectural Split (Admin vs Normal):** Separated the Control module into two distinct operational views: a standard Control Dashboard (Normal) for day-to-day dashboarding/overview, and a dedicated `AdminPage` for managing underlying settings, visibility, and resource configurations.
+- **Cloud Account Config Updates:** Modified the backend schemas, models, and API endpoints (`config_cloud_account.py`, `cloud_config.py`) for managing cloud configurations to support this new architectural division. Synced these changes to the frontend API client (`config.js`).
+- **Control Repository Enhancements:** Updated `control_repository.py` to refine backend data aggregation, supporting the new separated Admin workflows.
+- **Frontend UI & Layout Polish:** Restructured `OverviewTab.js`, `Sidebar.js`, and navigation components to seamlessly route users between the Admin view and the standard Control view.
+
+### August 23, 2026 (Admin Page Polish)
+- **Admin Page SettingsRow Update:** Made instance names in the Control module's AdminPage clickable. This dynamically triggers the `ControlResourceDetailModal` to pop up, bringing parity with the main Control dashboard UI for deep-dive resource inspection.
+

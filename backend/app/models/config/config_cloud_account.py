@@ -14,3 +14,4 @@ class ConfigCloudAccount(Base):
     auto_sync_timezone = Column(String, default="Asia/Kolkata")
     last_sync_date = Column(String, nullable=True)
     active_modules = Column(String, default="inventory,control")
+    last_error = Column(String, nullable=True)

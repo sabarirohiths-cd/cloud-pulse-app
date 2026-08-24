@@ -5,8 +5,11 @@ export const listSchedules = async () => {
   return response.data;
 };
 
-export const syncResources = async (accountName) => {
-  const params = accountName && accountName !== 'All Accounts' ? { account_name: accountName } : {};
+export const syncResources = async (accountName, region = 'all') => {
+  const params = {};
+  if (accountName && accountName !== 'All Accounts') params.account_name = accountName;
+  if (region && region !== 'all') params.region = region;
+  
   const response = await apiClient.post('/control/sync', null, { params });
   return response.data;
 };

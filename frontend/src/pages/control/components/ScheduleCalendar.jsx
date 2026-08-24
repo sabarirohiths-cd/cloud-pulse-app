@@ -27,16 +27,38 @@ export function ScheduleCalendar({ disabledDates, setDisabledDates }) {
     });
   };
 
-  const disableWeekends = () => {
-    const newDisabled = new Set(disabledDates);
+  const getActionableWeekendsInMonth = () => {
+    const dates = [];
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-      if (date.getDay() === 0 || date.getDay() === 6) { // 0=Sun, 6=Sat
-        const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        newDisabled.add(dateStr);
+      if (date.getDay() === 0 || date.getDay() === 6) {
+        if (date >= todayStart) {
+          const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+          dates.push(dateStr);
+        }
       }
     }
-    setDisabledDates(Array.from(newDisabled));
+    return dates;
+  };
+
+  const actionableWeekends = getActionableWeekendsInMonth();
+  const allWeekendsDisabled = actionableWeekends.length > 0 && actionableWeekends.every(d => disabledDates.includes(d));
+
+  const toggleWeekends = () => {
+    if (actionableWeekends.length === 0) return;
+    
+    if (allWeekendsDisabled) {
+      setDisabledDates(prev => prev.filter(d => !actionableWeekends.includes(d)));
+    } else {
+      setDisabledDates(prev => {
+        const newSet = new Set(prev);
+        actionableWeekends.forEach(d => newSet.add(d));
+        return Array.from(newSet);
+      });
+    }
   };
 
   const renderDays = () => {
@@ -106,8 +128,8 @@ export function ScheduleCalendar({ disabledDates, setDisabledDates }) {
       </div>
 
       <div className="flex items-center justify-between mb-2">
-        <button onClick={disableWeekends} className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded transition-colors w-full border border-zinc-700/50 shadow-sm font-medium">
-          Skip All Weekends (This Month)
+        <button onClick={toggleWeekends} className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded transition-colors w-full border border-zinc-700/50 shadow-sm font-medium">
+          {allWeekendsDisabled ? 'Keep All Weekends (This Month)' : 'Skip All Weekends (This Month)'}
         </button>
       </div>
 

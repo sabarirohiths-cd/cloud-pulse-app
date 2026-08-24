@@ -87,8 +87,16 @@ class AWSSessionManager:
                 return True, ""
             except (BotoCoreError, ClientError) as e:
                 err = str(e)
-                if "InvalidClientTokenId" in err or "InvalidAccessKeyId" in err:
-                    return False, "Invalid AWS Security Token or Access Key."
+                
+                # AWS unfortunately returns 'InvalidClientTokenId' for BOTH a bad Access Key 
+                # AND an expired/bad Session Token. We must infer the cause based on input.
+                if "InvalidClientTokenId" in err or "InvalidSecurityToken" in err or "ExpiredToken" in err:
+                    if credentials.get('aws_session_token'):
+                        return False, "AWS Session Token has expired or is invalid."
+                    return False, "Invalid AWS Access Key ID."
+                    
+                if "InvalidAccessKeyId" in err:
+                    return False, "Invalid AWS Access Key ID."
                 if "SignatureDoesNotMatch" in err:
                     return False, "Invalid AWS Secret Key."
                 return False, err

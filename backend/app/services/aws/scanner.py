@@ -49,7 +49,7 @@ class AWSParallelScanner:
             logger.warning(f"[AWS Scanner] Failed to describe regions, falling back to default region '{default_region}': {e}")
             return [default_region]
 
-    async def scan_all_resources_parallel(self, credentials: dict, default_region: str = "us-east-1") -> List[Dict[str, Any]]:
+    async def scan_all_resources_parallel(self, credentials: dict, default_region: str = "us-east-1", target_region: str = "all") -> List[Dict[str, Any]]:
         # PRE-RESOLVE STS AssumeRole ONCE:
         # Avoids 200 redundant blocking network calls to STS during the parallel worker fan-out.
         if credentials.get('assume_role_arn'):
@@ -63,7 +63,12 @@ class AWSParallelScanner:
                 }
             credentials = await asyncio.to_thread(_resolve_sts)
 
-        active_regions = await asyncio.to_thread(self.get_active_regions, credentials, default_region)
+        if target_region and target_region != "all":
+            # Support comma-separated multi-region e.g. "ap-south-1,us-east-1"
+            active_regions = [r.strip() for r in target_region.split(',') if r.strip()]
+        else:
+            active_regions = await asyncio.to_thread(self.get_active_regions, credentials, default_region)
+            
         logger.info(f"[AWS Scanner] Scanning {len(active_regions)} regions natively via asyncio...")
         
         
@@ -111,9 +116,9 @@ class AWSParallelScanner:
         logger.info(f"[AWS Scanner] Parallel scan complete. Discovered {len(all_resources)} total resources.")
         return all_resources
 
-async def scan_all_resources_parallel(credentials: dict, default_region: str = "us-east-1") -> List[Dict[str, Any]]:
+async def scan_all_resources_parallel(credentials: dict, default_region: str = "us-east-1", target_region: str = "all") -> List[Dict[str, Any]]:
     scanner = AWSParallelScanner()
-    return await scanner.scan_all_resources_parallel(credentials, default_region)
+    return await scanner.scan_all_resources_parallel(credentials, default_region, target_region)
 
 
 import concurrent.futures

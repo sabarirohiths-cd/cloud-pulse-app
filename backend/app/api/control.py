@@ -283,7 +283,7 @@ from app.core.database import SessionLocal
 from app.services.sync_tracker import set_sync_status, get_sync_status
 import asyncio
 
-async def _background_control_sync(account_name: Optional[str]) -> str:
+async def _background_control_sync(account_name: Optional[str], region: str = "all") -> str:
     configs_to_process = []
     try:
         async with SessionLocal() as db:
@@ -295,6 +295,7 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
             configs = res.scalars().all()
             for c in configs:
                 configs_to_process.append({
+                    "id": c.id,
                     "account_name": c.account_name,
                     "provider": c.provider,
                     "default_region": c.default_region,
@@ -320,7 +321,7 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
             creds = decrypt_credentials(config["encrypted_credentials"])
             try:
                 resources = await control_service.sync_provider_resources(
-                    config["provider"], creds, "all"
+                    config["provider"], creds, region
                 )
                 print(f"[Backend Sync] Fetched {len(resources)} resources from {config['provider']}.")
             
@@ -366,7 +367,13 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                         ControlResource.cloud_provider == config["provider"]
                     )
                     existing_schedules = (await db.execute(stmt)).scalars().all()
-                    existing_ids = {s.resource_id for s in existing_schedules}
+                    
+                    if region != "all":
+                        # Support comma-separated multi-region: only consider resources in those specific regions as stale
+                        target_regions = {r.strip() for r in region.split(',') if r.strip()}
+                        existing_ids = {s.resource_id for s in existing_schedules if s.region in target_regions}
+                    else:
+                        existing_ids = {s.resource_id for s in existing_schedules}
                 
                     fetched_ids = set()
                     
@@ -476,14 +483,24 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
                     await db.commit()
                     
             except Exception as e:
+                err_str = str(e)
                 import traceback
                 traceback.print_exc()
                 print(f"[Backend Sync] Failed to sync account {config['account_name']}: {e}")
                 async with SessionLocal() as db:
+                    if "ExpiredToken" in err_str or "InvalidClientTokenId" in err_str or "InvalidAccessKeyId" in err_str:
+                        db_config = await db.get(ConfigCloudAccount, config["id"])
+                        if db_config:
+                            db_config.verified = False
+                            if "ExpiredToken" in err_str or ("InvalidClientTokenId" in err_str and creds.get("aws_session_token")):
+                                db_config.last_error = "AWS Session Token has expired or is invalid."
+                            else:
+                                db_config.last_error = "Invalid AWS Access Key ID."
+                                
                     from app.models.system.system_notification import SystemNotification
                     notification = SystemNotification(
                         title="Control Sync Failed",
-                        message=f"Failed to sync {config['account_name']}: {str(e)}",
+                        message=f"Failed to sync {config['account_name']}: {err_str}",
                         type="ERROR",
                         module="CONTROL"
                     )
@@ -518,7 +535,7 @@ async def _background_control_sync(account_name: Optional[str]) -> str:
         return f"Fatal error: {e}"
 
 @router.post("/sync")
-async def sync_resources(account_name: Optional[str] = None):
+async def sync_resources(account_name: Optional[str] = None, region: str = "all"):
     target_account = account_name or "ALL"
     if get_sync_status("control", target_account):
         return {"status": "already_syncing"}
@@ -527,7 +544,7 @@ async def sync_resources(account_name: Optional[str] = None):
     
     async def task_wrapper():
         try:
-            msg = await _background_control_sync(account_name)
+            msg = await _background_control_sync(account_name, region)
             set_sync_status("control", target_account, False, msg)
         except Exception as e:
             print(f"Background sync failed: {e}")

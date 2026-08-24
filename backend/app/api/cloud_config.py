@@ -49,7 +49,8 @@ async def list_configs(db: AsyncSession = Depends(get_db)):
             "auto_sync_enabled": c.auto_sync_enabled,
             "auto_sync_time": c.auto_sync_time,
             "auto_sync_timezone": c.auto_sync_timezone,
-            "active_modules": getattr(c, "active_modules", "inventory,control")
+            "active_modules": getattr(c, "active_modules", "inventory,control"),
+            "last_error": getattr(c, "last_error", None)
         }
         for c in configs
     ]
@@ -120,9 +121,13 @@ async def verify_config(config_id: int, db: AsyncSession = Depends(get_db)):
         
     if is_valid:
         db_config.verified = True
+        db_config.last_error = None
         await db.commit()
         return {"status": "success", "message": "Connection verified successfully"}
         
+    db_config.verified = False
+    db_config.last_error = error_msg
+    await db.commit()
     raise HTTPException(status_code=400, detail=f"Cloud verification check failed: {error_msg}")
 
 class AutoSyncUpdate(BaseModel):
@@ -146,3 +151,26 @@ async def update_auto_sync(config_id: int, payload: AutoSyncUpdate, db: AsyncSes
     await db.commit()
     
     return {"status": "success", "message": "Auto sync settings updated"}
+
+
+class CredentialsUpdate(BaseModel):
+    credentials: dict
+
+@router.patch("/{config_id}/credentials")
+async def update_credentials(config_id: int, payload: CredentialsUpdate, db: AsyncSession = Depends(get_db)):
+    db_config = await db.get(ConfigCloudAccount, config_id)
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Configuration target not found")
+        
+    existing_creds = decrypt_credentials(db_config.encrypted_credentials)
+    
+    # Filter out empty values so we only merge provided updates
+    updates = {k: v for k, v in payload.credentials.items() if v}
+    existing_creds.update(updates)
+    
+    db_config.encrypted_credentials = encrypt_credentials(existing_creds)
+    db_config.verified = False
+    db_config.last_error = None
+    
+    await db.commit()
+    return {"status": "success", "message": "Credentials updated successfully"}
