@@ -52,7 +52,7 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
   };
 
   const loadResources = async (reset = false) => {
-    if (loading || (!hasMore && !reset)) return;
+    if (!reset && (loading || !hasMore)) return;
 
     setLoading(true);
     const currentOffset = reset ? 0 : offset;

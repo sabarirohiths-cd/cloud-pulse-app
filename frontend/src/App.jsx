@@ -13,7 +13,7 @@ export default function App() {
       <Toaster position="top-right" theme="dark" richColors duration={2500} />
       <div className="flex h-screen" onClick={() => toast.dismiss()}>
         <Sidebar />
-        
+
         {/* Main content */}
         <main id="main-scroll-container" className="flex-1 overflow-y-auto p-6 bg-[#0a0a0f]">
           <Routes>

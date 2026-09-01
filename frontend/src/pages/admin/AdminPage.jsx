@@ -166,7 +166,9 @@ export default function AdminPage() {
   };
 
   const loadResources = async (reset = false) => {
-    if (loading || (!hasMore && !reset)) return;
+    if (!topFilters.account) return;
+    if (!reset && (loading || !hasMore)) return;
+    
     setLoading(true);
     const currentOffset = reset ? 0 : offset;
 
@@ -209,6 +211,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    if (!topFilters.account) return;
     setHasMore(true);
     setOffset(0);
     loadResources(true);
