@@ -4,11 +4,11 @@ import { toast } from 'sonner';
 import { listConfigs, createConfig, verifyConfig, deleteConfig, updateAutoSync, editConfig, updateCredentials } from '../../api/config';
 import { EmptyState } from '../../components/ui/EmptyState';
 
-const ProviderLogo = ({ provider, verified }) => {
+const ProviderLogo = ({ provider, verified, className = "h-5 w-auto max-w-[32px]" }) => {
   const isGrayscale = !verified;
-  if (provider === 'aws') return <img src="/aws-logo.svg" alt="AWS" className={`h-5 w-auto max-w-[32px] object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
-  if (provider === 'azure') return <img src="/azure-logo.svg" alt="Azure" className={`h-5 w-auto max-w-[32px] object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
-  if (provider === 'gcp') return <img src="/gcp-logo.svg" alt="GCP" className={`h-5 w-auto max-w-[32px] object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
+  if (provider === 'aws') return <img src="/aws-logo.svg" alt="AWS" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
+  if (provider === 'azure') return <img src="/azure-logo.svg" alt="Azure" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
+  if (provider === 'gcp') return <img src="/gcp-logo.svg" alt="GCP" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
   return <Cloud className={`h-5 w-5 ${isGrayscale ? 'text-zinc-600' : 'text-blue-400'}`} />;
 };
 
@@ -46,18 +46,29 @@ export default function ConfigPage() {
   const [providerForm, setProviderForm] = useState(initialProviderForm);
   const [saving, setSaving] = useState(false);
   const [editingConfigId, setEditingConfigId] = useState(null);
-  
+
   const [syncForm, setSyncForm] = useState({ enabled: false, time: '', timezone: 'Asia/Kolkata' });
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncConfigId, setSyncConfigId] = useState(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(null);
-  
+
   const [showCredsModal, setShowCredsModal] = useState(false);
   const [credsConfigId, setCredsConfigId] = useState(null);
   const [credsForm, setCredsForm] = useState({ access_key: '', secret_key: '', session_token: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => { try { const r = await listConfigs(); setConfigs(r.data?.configs || []); } catch { } };
+
+  // Handle click outside to close the action menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionMenuOpen && !event.target.closest('.action-menu-container')) {
+        setActionMenuOpen(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [actionMenuOpen]);
 
   const handleSave = async () => {
     const activeData = providerForm[providerForm.activeProvider];
@@ -191,128 +202,176 @@ export default function ConfigPage() {
 
       {/* Main Content Area */}
       {configs.length === 0 ? (
-        <EmptyState 
-          icon={Cloud} 
-          message="No cloud connections active. Click 'Add Connection' to onboard your first cloud provider." 
-          height="h-[400px]" 
+        <EmptyState
+          icon={Cloud}
+          message="No cloud connections active. Click 'Add Connection' to onboard your first cloud provider."
+          height="h-[400px]"
         />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {configs.map(c => (
-            <div key={c.id} className="bg-[#12141a] border border-zinc-800/80 rounded-xl hover:border-zinc-700/80 transition-colors relative group shadow-sm">
-              <div className="p-3 flex items-start gap-3">
-                
-                {/* Logo Area */}
-                <div className="flex-shrink-0 mt-1 h-8 w-8 flex items-center justify-center bg-transparent">
-                  <ProviderLogo provider={c.provider.toLowerCase()} verified={c.verified} />
-                </div>
-                
-                {/* Info Area */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-[13px] text-white font-semibold truncate">{c.account_name}</h3>
-                    
-                    {/* Glowing Dot Status */}
-                    {c.verified ? (
-                      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                        </span>
-                        Verified
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700">
-                          <span className="h-1.5 w-1.5 rounded-full bg-zinc-500"></span>
-                          Unverified
-                        </span>
-                        {c.last_error && c.last_error.toLowerCase().includes('expired') && (
-                          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded-full border border-rose-400/20">
-                            Token Expired
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 mt-2 text-[11px] text-zinc-500 font-medium">
-                    <span className="uppercase tracking-wider">{c.provider}</span>
-                    <span className="h-1 w-1 rounded-full bg-zinc-700"></span>
-                    <span>{c.region || 'Global'}</span>
-                    {c.auto_sync_enabled && (
-                      <>
-                        <span className="h-1 w-1 rounded-full bg-zinc-700"></span>
-                        <span className="flex items-center gap-1 text-blue-400">
-                          <Clock className="h-3 w-3" /> {c.auto_sync_time} {c.auto_sync_timezone}
-                        </span>
-                      </>
-                    )}
-                  </div>
+        <div className="space-y-8 animate-in fade-in duration-500">
+          {['aws', 'azure', 'gcp'].map(providerName => {
+            const providerConfigs = configs.filter(c => c.provider.toLowerCase() === providerName);
+            if (providerConfigs.length === 0) return null;
 
-                  {/* Active Modules Badges */}
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {(c.active_modules ?? 'inventory,control').split(',').filter(Boolean).map(m => {
-                      const mod = AVAILABLE_MODULES.find(mod => mod.id === m);
-                      const label = mod ? mod.label : m;
-                      const colorClass = mod ? mod.color : 'text-zinc-400';
-                      const bgClass = mod ? mod.bg : 'bg-zinc-800';
-                      const borderClass = mod ? mod.border : 'border-zinc-700';
-                      return (
-                        <div key={m} className={`flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest uppercase border ${bgClass} ${borderClass} ${colorClass}`}>
-                          {label}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+            return (
+              <div key={providerName} className="space-y-3">
+                {/* Section Header */}
+                <h2 className="text-[12px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2.5">
+                  <ProviderLogo provider={providerName} verified={true} className="h-4 w-auto max-w-[24px]" />
+                  {providerName === 'aws' ? 'Amazon Web Services' : providerName === 'azure' ? 'Microsoft Azure' : 'Google Cloud'}
+                  <span className="ml-2 px-2 py-0.5 rounded-full bg-zinc-800/80 text-[10px] text-zinc-500 border border-zinc-700/50">
+                    {providerConfigs.length} Hub{providerConfigs.length !== 1 && 's'}
+                  </span>
+                </h2>
 
-                {/* Kebab Action Menu */}
-                <div className="relative">
-                  <button onClick={() => setActionMenuOpen(actionMenuOpen === c.id ? null : c.id)} className="p-1.5 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition-colors">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  
-                  {actionMenuOpen === c.id && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
-                      <div className="absolute right-0 mt-1 w-48 bg-[#1a1d24] border border-zinc-700 rounded-lg shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                        <button onClick={() => { setActionMenuOpen(null); handleVerify(c.id); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
-                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Verify Connection
-                        </button>
-                        <button onClick={() => { setActionMenuOpen(null); handleEditConfig(c); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
-                          <FileEdit className="h-3.5 w-3.5 text-blue-400" /> Edit Details
-                        </button>
-                        {c.provider === 'aws' && (
-                          <button onClick={() => {
-                            setActionMenuOpen(null);
-                            setCredsConfigId(c.id);
-                            setCredsForm({ access_key: '', secret_key: '', session_token: '' });
-                            setShowCredsModal(true);
-                          }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
-                            <Key className="h-3.5 w-3.5 text-amber-400" /> Update Credentials
-                          </button>
-                        )}
-                        <button onClick={() => {
-                          setActionMenuOpen(null);
-                          setSyncConfigId(c.id);
-                          setSyncForm({ enabled: c.auto_sync_enabled || false, time: c.auto_sync_time || '', timezone: c.auto_sync_timezone || 'Asia/Kolkata' });
-                          setShowSyncModal(true);
-                        }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2">
-                          <Clock className="h-3.5 w-3.5 text-purple-400" /> Sync Settings
-                        </button>
-                        <div className="my-1 h-px bg-zinc-800" />
-                        <button onClick={() => { setActionMenuOpen(null); handleDelete(c.id); }} className="w-full text-left px-3 py-2 text-[12px] text-red-400 hover:text-red-300 hover:bg-red-950/30 flex items-center gap-2">
-                          <Trash2 className="h-3.5 w-3.5" /> Delete Connection
-                        </button>
-                      </div>
-                    </>
-                  )}
+                {/* Table Container */}
+                <div className="border border-zinc-800/80 rounded-xl bg-[#12141a] shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-zinc-900/50 border-b border-zinc-800/80 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
+                        <th className="px-4 py-3.5 rounded-tl-xl">Organization / Hub</th>
+                        <th className="px-4 py-3.5">Connection Status</th>
+                        <th className="px-4 py-3.5">Region Scope</th>
+                        <th className="px-4 py-3.5">Active Modules</th>
+                        <th className="px-4 py-3.5">Auto-Sync</th>
+                        <th className="px-4 py-3.5 text-right w-16 rounded-tr-xl">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                      {providerConfigs.map(c => (
+                        <tr key={c.id} className="hover:bg-zinc-800/30 transition-colors group">
+
+                          {/* Column 1: Account / Hub */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner">
+                                <Cloud className="w-4 h-4 text-zinc-500" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-semibold text-zinc-200 truncate">{c.account_name}</div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-widest font-bold text-[8px]">
+                                    Master Hub
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Column 2: Status */}
+                          <td className="px-4 py-3 align-middle">
+                            {c.verified ? (
+                              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded border border-emerald-400/20">
+                                <span className="relative flex h-1.5 w-1.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                </span>
+                                Verified
+                              </span>
+                            ) : (
+                              <div className="flex flex-col gap-1.5 items-start">
+                                <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-500"></span>
+                                  Unverified
+                                </span>
+                                {c.last_error && c.last_error.toLowerCase().includes('expired') && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-semibold text-rose-400 bg-rose-400/10 px-1.5 py-0.5 rounded border border-rose-400/20">
+                                    Token Expired
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Column 3: Region */}
+                          <td className="px-4 py-3 align-middle">
+                            <span className="text-[12px] text-zinc-300 font-medium bg-zinc-900/50 px-2.5 py-1 rounded-md border border-zinc-800/80">
+                              {c.region || 'Global'}
+                            </span>
+                          </td>
+
+                          {/* Column 4: Active Modules */}
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex flex-wrap gap-1.5">
+                              {(c.active_modules ?? 'inventory,control').split(',').filter(Boolean).map(m => {
+                                const mod = AVAILABLE_MODULES.find(mod => mod.id === m);
+                                const label = mod ? mod.label : m;
+                                const colorClass = mod ? mod.color : 'text-zinc-400';
+                                const bgClass = mod ? mod.bg : 'bg-zinc-800';
+                                const borderClass = mod ? mod.border : 'border-zinc-700';
+                                return (
+                                  <div key={m} className={`flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest uppercase border ${bgClass} ${borderClass} ${colorClass}`}>
+                                    {label}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+
+                          {/* Column 5: Sync */}
+                          <td className="px-4 py-3 align-middle">
+                            {c.auto_sync_enabled ? (
+                              <div className="flex flex-col items-start gap-0.5">
+                                <span className="text-[12px] font-medium text-zinc-300 flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-blue-400" /> {c.auto_sync_time}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 pl-5">{c.auto_sync_timezone}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] font-medium text-zinc-600 bg-zinc-900/50 px-2 py-0.5 rounded border border-zinc-800/50">Disabled</span>
+                            )}
+                          </td>
+
+                          {/* Column 6: Actions */}
+                          <td className="px-4 py-3 text-right align-middle">
+                            <div className="relative inline-block text-left action-menu-container">
+                              <button onClick={() => setActionMenuOpen(actionMenuOpen === c.id ? null : c.id)} className="p-1.5 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-800 transition-colors">
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+
+                              {actionMenuOpen === c.id && (
+                                <div className="absolute right-0 mt-1 w-48 bg-[#1a1d24] border border-zinc-700 rounded-lg shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                  <button onClick={() => { setActionMenuOpen(null); handleVerify(c.id); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2 transition-colors">
+                                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Verify Connection
+                                  </button>
+                                  <button onClick={() => { setActionMenuOpen(null); handleEditConfig(c); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2 transition-colors">
+                                    <FileEdit className="h-3.5 w-3.5 text-blue-400" /> Edit Details
+                                  </button>
+                                  {c.provider === 'aws' && (
+                                    <button onClick={() => {
+                                      setActionMenuOpen(null);
+                                      setCredsConfigId(c.id);
+                                      setCredsForm({ access_key: '', secret_key: '', session_token: '' });
+                                      setShowCredsModal(true);
+                                    }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2 transition-colors">
+                                      <Key className="h-3.5 w-3.5 text-amber-400" /> Update Credentials
+                                    </button>
+                                  )}
+                                  <button onClick={() => {
+                                    setActionMenuOpen(null);
+                                    setSyncConfigId(c.id);
+                                    setSyncForm({ enabled: c.auto_sync_enabled || false, time: c.auto_sync_time || '', timezone: c.auto_sync_timezone || 'Asia/Kolkata' });
+                                    setShowSyncModal(true);
+                                  }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2 transition-colors">
+                                    <Clock className="h-3.5 w-3.5 text-purple-400" /> Sync Settings
+                                  </button>
+                                  <div className="my-1 h-px bg-zinc-800" />
+                                  <button onClick={() => { setActionMenuOpen(null); handleDelete(c.id); }} className="w-full text-left px-3 py-2 text-[12px] text-red-400 hover:text-red-300 hover:bg-red-950/50 flex items-center gap-2 transition-colors">
+                                    <Trash2 className="h-3.5 w-3.5" /> Delete Connection
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -321,7 +380,7 @@ export default function ConfigPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowForm(false); setProviderForm(initialProviderForm); setEditingConfigId(null); }} />
           <div className="relative w-full max-w-[480px] bg-[#0e1015] border border-zinc-800 rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
-            
+
             {/* Drawer Header */}
             <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/20">
               <h2 className="text-sm font-semibold text-white">{editingConfigId ? 'Edit Cloud Connection' : 'Add Cloud Connection'}</h2>
@@ -332,7 +391,7 @@ export default function ConfigPage() {
 
             {/* Drawer Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              
+
               <div className="space-y-4">
                 <h3 className="text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Provider Details</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -365,13 +424,13 @@ export default function ConfigPage() {
               {!editingConfigId && (
                 <div className="space-y-4 pt-2">
                   <h3 className="text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Authentication Credentials</h3>
-                  
+
                   {/* AWS Credentials */}
                   {providerForm.activeProvider === 'aws' && (
                     <div className="space-y-3 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/80">
                       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer select-none">
                         <input type="checkbox" checked={providerForm.aws.use_iam_role} onChange={e => setProviderForm({ ...providerForm, aws: { ...providerForm.aws, use_iam_role: e.target.checked } })} className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-blue-500 focus:ring-blue-500/20" />
-                        Use IAM Role (EC2 instance profile)
+                        Use AWS IAM Role
                       </label>
                       {!providerForm.aws.use_iam_role && (
                         <div className="space-y-4 pt-2">
@@ -449,7 +508,7 @@ export default function ConfigPage() {
                     const isActive = providerForm.active_modules.includes(m.id);
                     const Icon = m.icon;
                     return (
-                      <div 
+                      <div
                         key={m.id}
                         onClick={() => {
                           let next = [...providerForm.active_modules];
@@ -492,7 +551,7 @@ export default function ConfigPage() {
           <div className="relative w-[400px] bg-[#12141a] border border-zinc-800 rounded-xl shadow-2xl p-6 animate-in zoom-in-95 duration-100">
             <h3 className="text-sm font-semibold text-white mb-1">Auto Sync Settings</h3>
             <p className="text-[12px] text-zinc-400 mb-6">Schedule automatic background syncing for this cloud connection.</p>
-            
+
             <div className="space-y-5">
               <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
                 <button onClick={() => setSyncForm({ ...syncForm, enabled: false })} className={`flex-1 py-1.5 text-[12px] font-medium rounded-md transition-colors ${!syncForm.enabled ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>Disabled</button>
@@ -530,7 +589,7 @@ export default function ConfigPage() {
           <div className="relative w-[480px] bg-[#12141a] border border-zinc-800 rounded-xl shadow-2xl p-6 animate-in zoom-in-95 duration-100">
             <h3 className="text-sm font-semibold text-white mb-1">Update AWS Credentials</h3>
             <p className="text-[12px] text-zinc-400 mb-6">Enter new values. Only the fields you fill in will be updated.</p>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>

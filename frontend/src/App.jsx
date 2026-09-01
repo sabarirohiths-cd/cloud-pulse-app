@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
+import { Toaster } from './components/ui/Toaster';
 import InventoryPage from './pages/inventory/InventoryPage';
 import ConfigPage from './pages/config/ConfigPage';
 import ControlPage from './pages/control/ControlPage';
@@ -10,7 +11,7 @@ import { Sidebar } from './components/layout/Sidebar';
 export default function App() {
   return (
     <BrowserRouter>
-      <Toaster position="top-right" theme="dark" richColors duration={2500} />
+      <Toaster />
       <div className="flex h-screen" onClick={() => toast.dismiss()}>
         <Sidebar />
 

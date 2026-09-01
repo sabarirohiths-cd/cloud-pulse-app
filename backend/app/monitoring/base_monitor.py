@@ -10,6 +10,7 @@ from app.services.action_logger import log_control_action
 from app.models.system.system_notification import SystemNotification
 from app.services.control_service import control_service
 from app.core.security import decrypt_credentials
+from app.core.event_bus import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,11 @@ async def monitor_resource_transition(
                         
                         await db.commit()
                         logger.info(f"[State Monitor] Successfully updated DB state for {resource_id} to {sched.status}")
+                        
+                        await event_bus.publish("resource_update", {
+                            "resource_id": sched.resource_id,
+                            "status": sched.status
+                        })
                             
                     return
             except Exception as e:

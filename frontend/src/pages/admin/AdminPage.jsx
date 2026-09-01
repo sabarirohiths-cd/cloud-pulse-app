@@ -288,12 +288,32 @@ export default function AdminPage() {
     ...uniqueGroups.map(g => ({ label: g, value: g }))
   ];
 
-  const filteredResources = resources
-    .filter(r => filter.group === 'All' || getGroup(r.service_type) === filter.group)
-    .filter(r =>
-      (r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.resource_id || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const matchesFilter = (r) => {
+    const groupMatch = filter.group === 'All' || getGroup(r.service_type) === filter.group;
+    const searchMatch = (r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.resource_id || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return groupMatch && searchMatch;
+  };
+
+  const directlyMatchedIds = new Set(resources.filter(matchesFilter).map(r => r.resource_id));
+  const familyMatchedIds = new Set(directlyMatchedIds);
+
+  // Group View is always true in AdminPage
+  resources.forEach(r => {
+    if (directlyMatchedIds.has(r.resource_id) && r.parent_resource_id) {
+      familyMatchedIds.add(r.parent_resource_id);
+    }
+    if (r.parent_resource_id && directlyMatchedIds.has(r.parent_resource_id)) {
+      familyMatchedIds.add(r.resource_id);
+    }
+  });
+
+  const filteredResources = resources.filter(r => familyMatchedIds.has(r.resource_id));
+
+  const displayCount = filteredResources.filter(r => {
+    const isNonActionableParent = ['ACTIVE', 'UNKNOWN'].includes(r.status) && resources.some(child => child.parent_resource_id === r.resource_id);
+    return !isNonActionableParent;
+  }).length;
 
   const treeData = useMemo(() => buildResourceTree(filteredResources, true, expandedRowIds), [filteredResources, expandedRowIds]);
 
@@ -345,7 +365,7 @@ export default function AdminPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4 animate-in fade-in duration-300 w-full pt-4">
+          <div className="space-y-4 animate-in fade-in duration-300 w-full">
           <div className="flex items-center justify-between mb-2">
             <FilterBar
               showLabel={true}
@@ -369,9 +389,9 @@ export default function AdminPage() {
           </div>
 
           <div className="bg-[#111114] border border-[#1f1f24] rounded-2xl shadow-xl [overflow:clip]">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800/80 bg-zinc-900/50">
+            <div className="sticky top-0 z-40 flex items-center justify-between p-4 border-b border-zinc-800/80 bg-[#111114]/95 backdrop-blur-sm">
               <div className="text-sm font-medium text-zinc-400">
-                {filteredResources.length} Resource{filteredResources.length !== 1 && 's'} Found
+                {displayCount} Resource{displayCount !== 1 && 's'} Found
               </div>
               <div className="flex items-center gap-2">
                 <button

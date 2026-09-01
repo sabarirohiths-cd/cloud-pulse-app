@@ -9,7 +9,7 @@ import { listResources, togglePower, saveSchedule, getDbState, getControlSummary
 import ActionModal from '../ActionModal';
 import { ControlResourceDetailModal } from '../ControlResourceDetailModal';
 import { buildResourceTree } from '../../../utils/resource-tree';
-import { ResourceTableRow } from './components/ResourceTableRow';
+import { ResourceTableRow } from '../components/ResourceTableRow';
 import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
 import { useResourcePolling } from '../../../hooks/useResourcePolling';
 
@@ -144,15 +144,11 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
         toast.success(`Schedule saved for ${resource.resource_id}`);
       } else if (mode === 'start' || mode === 'stop') {
         const optimisticState = mode === 'start' ? 'STARTING' : 'STOPPING';
+        
+        // 1. Snapshot previous state for rollback
+        const previousState = resources.find(r => r.resource_id === resource.resource_id)?.status;
 
-        const toggleRes = await togglePower({
-          resource_id: resource.resource_id,
-          service_type: resource.service_type,
-          account_name: resource.account_name,
-          region: resource.region,
-          action: mode.toUpperCase()
-        });
-
+        // 2. OPTIMISTIC UPDATE: Instantly update the UI before the API call
         setResources(prev => prev.map(r => {
           if (r.resource_id === resource.resource_id) {
             return { ...r, status: optimisticState };
@@ -169,25 +165,48 @@ export function ResourcesTab({ topFilters, onActionLogged, syncRefreshTrigger })
           return r;
         }));
 
-        if (toggleRes && toggleRes.saved_config_json) {
-          try {
-            const configData = JSON.parse(toggleRes.saved_config_json);
-            if (configData.asg_name) {
-              const asgName = configData.asg_name;
-              setResources(prev => prev.map(r => {
-                if (r.resource_id === asgName) {
-                  return { ...r, status: optimisticState };
-                }
-                if (r.service_type === 'EC2') {
-                  const tags = typeof r.tags_json === 'string' ? JSON.parse(r.tags_json) : (r.tags_json || {});
-                  if (tags['aws:autoscaling:groupName'] === asgName) {
-                    return { ...r, status: mode === 'start' ? 'STARTING' : 'TERMINATING' };
+        toast.success(`Resource is now ${optimisticState.toLowerCase()}`);
+
+        try {
+          // 3. EXECUTE API CALL in the background
+          const toggleRes = await togglePower({
+            resource_id: resource.resource_id,
+            service_type: resource.service_type,
+            account_name: resource.account_name,
+            region: resource.region,
+            action: mode.toUpperCase()
+          });
+
+          // 4. Resolve ASG names if applicable
+          if (toggleRes && toggleRes.saved_config_json) {
+            try {
+              const configData = JSON.parse(toggleRes.saved_config_json);
+              if (configData.asg_name) {
+                const asgName = configData.asg_name;
+                setResources(prev => prev.map(r => {
+                  if (r.resource_id === asgName) {
+                    return { ...r, status: optimisticState };
                   }
-                }
-                return r;
-              }));
+                  if (r.service_type === 'EC2') {
+                    const tags = typeof r.tags_json === 'string' ? JSON.parse(r.tags_json) : (r.tags_json || {});
+                    if (tags['aws:autoscaling:groupName'] === asgName) {
+                      return { ...r, status: mode === 'start' ? 'STARTING' : 'TERMINATING' };
+                    }
+                  }
+                  return r;
+                }));
+              }
+            } catch (e) { }
+          }
+        } catch (e) {
+          // 5. ROLLBACK on failure
+          setResources(prev => prev.map(r => {
+            if (r.resource_id === resource.resource_id) {
+              return { ...r, status: previousState || r.status };
             }
-          } catch (e) { }
+            return r;
+          }));
+          throw e; // Re-throw to be caught by the outer catch block
         }
 
         toast.success(`Resource is now ${optimisticState.toLowerCase()}`);

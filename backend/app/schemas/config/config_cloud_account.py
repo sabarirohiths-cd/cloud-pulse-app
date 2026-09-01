@@ -9,6 +9,7 @@ class ConfigCloudAccountBase(BaseModel):
     auto_sync_time: str = "10:00"
     auto_sync_timezone: str = "Asia/Kolkata"
     active_modules: str = "inventory,control"
+    parent_account_id: Optional[int] = None
 
 class ConfigCloudAccountCreate(ConfigCloudAccountBase):
     encrypted_credentials: str

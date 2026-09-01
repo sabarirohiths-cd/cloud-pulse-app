@@ -14,6 +14,9 @@ from app.services.action_logger import log_control_action
 from app.repositories.control_repository import control_repository
 from app.schemas import ScheduleUpdatePayload, ManualPowerActionPayload, LogActionPayload
 from app.monitoring.state_monitor import route_transition
+from app.core.event_bus import event_bus
+from fastapi import Request
+from fastapi.responses import StreamingResponse
 
 class VisibilityTogglePayload(BaseModel):
     resource_ids: list[str]
@@ -180,6 +183,12 @@ async def toggle_power(payload: ManualPowerActionPayload, background_tasks: Back
                 sched.saved_config_json = json.dumps(config_data)
                 
                 await db.commit()
+                
+                # Broadcast the optimistic state change
+                await event_bus.publish("resource_update", {
+                    "resource_id": payload.resource_id,
+                    "status": sched.status
+                })
                 
                 # Spawn background monitoring task for the main resource (router will handle the flow)
                 target_state = "RUNNING" if payload.action.upper() == "START" else "STOPPED"
@@ -628,6 +637,13 @@ async def get_live_state(
                 )
                 
             await db.commit()
+            
+            # Broadcast state change
+            await event_bus.publish("resource_update", {
+                "resource_id": sched.resource_id,
+                "status": sched.status
+            })
+            
     return {"resource_id": resource_id, "status": state}
 
 @router.get("/db-state/{resource_id:path}")
@@ -643,3 +659,19 @@ async def get_db_state(resource_id: str, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import text
     await db.commit()
     return {'status': 'success'}
+
+@router.get("/stream")
+async def sse_stream(request: Request):
+    """Server-Sent Events endpoint for real-time resource updates."""
+    async def event_generator():
+        q = event_bus.subscribe()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await q.get()
+                yield f"data: {message}\n\n"
+        finally:
+            event_bus.unsubscribe(q)
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

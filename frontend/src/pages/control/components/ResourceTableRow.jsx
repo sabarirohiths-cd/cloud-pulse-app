@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Clock, Eye, EyeOff } from 'lucide-react';
-import { ResourceIcon } from '../../../../components/ui/ResourceIcon';
+import { ResourceIcon } from '../../../components/ui/ResourceIcon';
 
 export const ResourceTableRow = React.memo(({
   r,
@@ -50,22 +50,24 @@ export const ResourceTableRow = React.memo(({
           </div>
         </div>
       </td>
-      <td className="p-4 text-[13px] text-zinc-400 font-medium uppercase">{r.service_type}</td>
-      <td className="p-4 text-[13px] text-zinc-400 font-medium whitespace-nowrap">{r.region}</td>
-      <td className="p-4 flex flex-col items-start gap-1 justify-center min-h-[50px]">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getStatusStyle(r.status)}`}>
-          {r.status}
-        </span>
-        {isAsgManaged && (
-          <span
-            className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-help"
-            title={`Power actions for this instance are controlled by Auto Scaling Group: ${asgName}`}
-          >
-            ASG Managed
+      <td className="p-4 text-[13px] text-zinc-400 font-medium uppercase align-middle">{r.service_type}</td>
+      <td className="p-4 text-[13px] text-zinc-400 font-medium whitespace-nowrap align-middle">{r.region}</td>
+      <td className="p-4 align-middle">
+        <div className="flex flex-col items-start gap-1">
+          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getStatusStyle(r.status)}`}>
+            {r.status}
           </span>
-        )}
+          {isAsgManaged && (
+            <span
+              className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-help whitespace-nowrap"
+              title={`Power actions for this instance are controlled by Auto Scaling Group: ${asgName}`}
+            >
+              ASG Managed
+            </span>
+          )}
+        </div>
       </td>
-      <td className="p-4 text-[13px] text-zinc-400">
+      <td className="p-4 text-[13px] text-zinc-400 align-middle">
         {isSettingsMode ? (
           <span className="text-zinc-500 italic text-xs">Settings Managed</span>
         ) : r.schedule?.is_automation_enabled ? (
@@ -77,7 +79,7 @@ export const ResourceTableRow = React.memo(({
           <span className="text-zinc-500 italic text-xs">Manual</span>
         )}
       </td>
-      <td className="p-4 text-right">
+      <td className="p-4 align-middle">
         <div className="flex justify-end gap-2">
           {isSettingsMode ? (
             <button

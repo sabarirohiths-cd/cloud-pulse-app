@@ -13,6 +13,17 @@ export function Sidebar() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setIsSidebarMinimized(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     // Trigger window resize event after transition completes to force visualizations to re-center
     const timer = setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
@@ -48,9 +59,8 @@ export function Sidebar() {
   return (
     <aside className={`${isSidebarMinimized ? 'w-[72px]' : 'w-64'} transition-all duration-300 ease-in-out bg-[#0e1015] border-r border-[#1e232b] flex flex-col shrink-0 z-20 relative`}>
       <div 
-        className={`flex items-center ${isSidebarMinimized ? 'justify-center group cursor-pointer' : 'justify-between'} pt-6 pb-4 px-5`}
+        className={`flex items-center ${isSidebarMinimized ? 'justify-center group cursor-pointer relative' : 'justify-between'} pt-6 pb-4 px-5`}
         onClick={() => { if (isSidebarMinimized) setIsSidebarMinimized(false); }}
-        title={isSidebarMinimized ? "Expand Sidebar" : ""}
       >
         <div className={`flex items-center gap-2.5 ${isSidebarMinimized ? 'px-0 relative' : ''}`}>
           <div className={`relative flex items-center justify-center shrink-0 transition-opacity duration-300 ${isSidebarMinimized ? 'group-hover:opacity-0' : ''}`}>
@@ -59,9 +69,14 @@ export function Sidebar() {
           </div>
           
           {isSidebarMinimized && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-white">
-              <PanelLeft size={20} />
-            </div>
+            <>
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-white">
+                <PanelLeft size={20} />
+              </div>
+              <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+                Expand Sidebar <span className="text-zinc-500 ml-1 font-mono">(⌘B)</span>
+              </div>
+            </>
           )}
 
           {!isSidebarMinimized && (
@@ -72,25 +87,28 @@ export function Sidebar() {
         </div>
         
         {!isSidebarMinimized && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsSidebarMinimized(true); }}
-            className="text-gray-400 hover:text-white transition-colors p-1"
-            title="Minimize Sidebar"
-          >
-            <PanelLeftClose size={16} />
-          </button>
+          <div className="relative group/collapse">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsSidebarMinimized(true); }}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+            >
+              <PanelLeftClose size={16} />
+            </button>
+            <div className="absolute right-0 top-full mt-2 hidden group-hover/collapse:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Collapse <span className="text-zinc-500 ml-1 font-mono">(⌘B)</span>
+            </div>
+          </div>
         )}
       </div>
 
       <nav className="space-y-1 px-3">
-        <div>
+        <div className="relative group/control">
           <button 
             onClick={() => setControlExpanded(!controlExpanded)}
-            title={isSidebarMinimized ? "Control" : ""}
-            className={`w-full flex items-center ${isSidebarMinimized ? 'justify-center' : 'justify-between'} px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${location.pathname === '/control' ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}
+            className={`w-full flex items-center ${isSidebarMinimized ? 'justify-center' : 'justify-between'} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${location.pathname === '/control' ? 'text-white border-purple-500' : 'text-[#8b949e] hover:text-white border-transparent'} ${isSidebarMinimized && controlExpanded ? 'bg-[#1a1d24] rounded-t-xl' : location.pathname === '/control' ? 'bg-[#1a1d24] rounded-lg' : 'hover:bg-[#1a1d24] rounded-lg'}`}
           >
             <div className={`flex items-center ${isSidebarMinimized ? 'w-full justify-center gap-1' : 'gap-3'}`}>
-              <Activity className="h-4 w-4 text-purple-400 shrink-0" />
+              <Activity className={`h-4 w-4 shrink-0 transition-colors ${location.pathname === '/control' ? 'text-purple-400' : 'text-[#8b949e] group-hover/control:text-zinc-300'}`} />
               {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Control</span>}
             </div>
             {!isSidebarMinimized && (
@@ -100,30 +118,31 @@ export function Sidebar() {
             )}
           </button>
           
+          {/* Custom Hover Tooltip */}
+          {isSidebarMinimized && (
+            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/control:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Control
+            </div>
+          )}
+          
+          {/* Inline Submenu */}
           {controlExpanded && (
-            <div className={`mt-1 space-y-1 ${isSidebarMinimized ? 'flex flex-col items-center bg-[#15181e] py-1.5 mx-2 rounded-lg' : 'ml-6 border-l border-zinc-800/60 pl-3'}`}>
+            <div className={isSidebarMinimized ? `flex flex-col items-center gap-1.5 bg-[#1a1d24] rounded-b-xl pb-2.5 pt-1 w-full border-l-2 ${location.pathname === '/control' ? 'border-purple-500' : 'border-transparent'}` : 'mt-1 space-y-1 ml-6 border-l border-zinc-800/60 pl-3'}>
               {availableProviders.map(p => (
                 <button
                   key={p}
-                  title={isSidebarMinimized ? (p === 'AWS' ? 'Amazon Web Services' : p === 'GCP' ? 'Google Cloud' : 'Microsoft Azure') : ""}
                   onClick={() => {
                     handleProviderChange(p);
-                    if (location.pathname !== '/control') {
-                      navigate('/control');
-                    }
+                    if (location.pathname !== '/control') navigate('/control');
                   }}
-                  className={`flex items-center transition-colors tracking-wide ${
-                    isSidebarMinimized 
-                      ? `justify-center w-8 h-8 rounded-md text-[10px] font-bold ${provider === p && location.pathname === '/control' ? 'bg-[#1a1d24] text-white ring-1 ring-purple-400/50' : 'text-[#737d8c] hover:bg-[#1a1d24]/50 hover:text-white'}` 
-                      : `w-full gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium ${provider === p && location.pathname === '/control' ? 'text-white bg-[#1a1d24]' : 'text-[#737d8c] hover:text-zinc-300 hover:bg-[#1a1d24]/50'}`
-                  }`}
+                  title={isSidebarMinimized ? p : undefined}
+                  className={isSidebarMinimized
+                    ? `flex items-center justify-center w-7 h-7 rounded-lg transition-all ${provider === p && location.pathname === '/control' ? 'bg-purple-500/20 ring-1 ring-purple-500 shadow-md shadow-purple-500/10' : 'hover:bg-zinc-800/60'}`
+                    : `w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors tracking-wide ${provider === p && location.pathname === '/control' ? 'text-white bg-[#1a1d24]' : 'text-[#737d8c] hover:text-zinc-300 hover:bg-[#1a1d24]/50'}`
+                  }
                 >
                   {isSidebarMinimized ? (
-                    <img 
-                      src={`/${p === 'AWS' ? 'aws' : p === 'GCP' ? 'gcp' : 'azure'}-logo.svg`} 
-                      alt={p} 
-                      className="h-5 w-5 object-contain" 
-                    />
+                    <img src={`/${p === 'AWS' ? 'aws' : p === 'GCP' ? 'gcp' : 'azure'}-logo.svg`} alt={p} className="h-4 w-4 object-contain opacity-90 hover:opacity-100 drop-shadow-sm" />
                   ) : (
                     <>
                       <div className={`h-1.5 w-1.5 rounded-full ${provider === p && location.pathname === '/control' ? 'bg-purple-400' : 'bg-transparent'}`} />
@@ -135,30 +154,44 @@ export function Sidebar() {
             </div>
           )}
         </div>
-        <NavLink to="/inventory" title={isSidebarMinimized ? "Inventory" : ""} className={({isActive}) => `flex items-center gap-3 ${isSidebarMinimized ? 'justify-center' : ''} px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${isActive ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}>
-          {({isActive}) => (
-            <>
-              <Boxes className="h-4 w-4 text-teal-400 shrink-0" />
-              {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Inventory</span>}
-            </>
+        <div className="relative group/inventory">
+          <NavLink to="/inventory" className={({isActive}) => `flex items-center gap-3 ${isSidebarMinimized ? 'justify-center' : ''} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${isActive ? 'bg-[#1a1d24] text-white border-teal-400 rounded-lg' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24] border-transparent rounded-lg'}`}>
+            {({isActive}) => (
+              <>
+                <Boxes className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-teal-400' : 'text-[#8b949e] group-hover/inventory:text-zinc-300'}`} />
+                {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Inventory</span>}
+              </>
+            )}
+          </NavLink>
+          {isSidebarMinimized && (
+            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/inventory:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Inventory
+            </div>
           )}
-        </NavLink>
-        <NavLink to="/config" title={isSidebarMinimized ? "Configuration" : ""} className={({isActive}) => `flex items-center gap-3 ${isSidebarMinimized ? 'justify-center' : ''} px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${isActive ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}>
-          {({isActive}) => (
-            <>
-              <CloudCog className="h-4 w-4 text-cyan-400 shrink-0" />
-              {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Configuration</span>}
-            </>
+        </div>
+        
+        <div className="relative group/config">
+          <NavLink to="/config" className={({isActive}) => `flex items-center gap-3 ${isSidebarMinimized ? 'justify-center' : ''} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${isActive ? 'bg-[#1a1d24] text-white border-cyan-400 rounded-lg' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24] border-transparent rounded-lg'}`}>
+            {({isActive}) => (
+              <>
+                <CloudCog className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-cyan-400' : 'text-[#8b949e] group-hover/config:text-zinc-300'}`} />
+                {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Configuration</span>}
+              </>
+            )}
+          </NavLink>
+          {isSidebarMinimized && (
+            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/config:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Configuration
+            </div>
           )}
-        </NavLink>
-        <div>
+        </div>
+        <div className="relative group/admin mt-auto">
           <button 
             onClick={() => setAdminExpanded(!adminExpanded)}
-            title={isSidebarMinimized ? "Admin" : ""}
-            className={`w-full flex items-center ${isSidebarMinimized ? 'justify-center' : 'justify-between'} px-3 py-2.5 rounded-md text-[13px] font-medium transition-colors ${location.pathname.startsWith('/admin') ? 'bg-[#1a1d24] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24]'}`}
+            className={`w-full flex items-center ${isSidebarMinimized ? 'justify-center' : 'justify-between'} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${location.pathname.startsWith('/admin') ? 'text-white border-amber-400' : 'text-[#8b949e] hover:text-white border-transparent'} ${isSidebarMinimized && adminExpanded ? 'bg-[#1a1d24] rounded-t-xl' : location.pathname.startsWith('/admin') ? 'bg-[#1a1d24] rounded-lg' : 'hover:bg-[#1a1d24] rounded-lg'}`}
           >
             <div className={`flex items-center ${isSidebarMinimized ? 'w-full justify-center gap-1' : 'gap-3'}`}>
-              <Settings className="h-4 w-4 text-amber-400 shrink-0" />
+              <Settings className={`h-4 w-4 shrink-0 transition-colors ${location.pathname.startsWith('/admin') ? 'text-amber-400' : 'text-[#8b949e] group-hover/admin:text-zinc-300'}`} />
               {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Admin</span>}
             </div>
             {!isSidebarMinimized && (
@@ -168,19 +201,26 @@ export function Sidebar() {
             )}
           </button>
           
+          {/* Custom Hover Tooltip */}
+          {isSidebarMinimized && (
+            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/admin:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Admin
+            </div>
+          )}
+          
+          {/* Inline Submenu */}
           {adminExpanded && (
-            <div className={`mt-1 space-y-1 ${isSidebarMinimized ? 'flex flex-col items-center bg-[#15181e] py-1.5 mx-2 rounded-lg' : 'ml-6 border-l border-zinc-800/60 pl-3'}`}>
+            <div className={isSidebarMinimized ? `flex flex-col items-center gap-1.5 bg-[#1a1d24] rounded-b-xl pb-2.5 pt-1 w-full border-l-2 ${location.pathname.startsWith('/admin') ? 'border-amber-400' : 'border-transparent'}` : 'mt-1 space-y-1 ml-6 border-l border-zinc-800/60 pl-3'}>
               <NavLink
                 to="/admin"
-                title={isSidebarMinimized ? "Admin Console" : ""}
-                className={({isActive}) => `flex items-center transition-colors tracking-wide ${
-                  isSidebarMinimized 
-                    ? `justify-center w-8 h-8 rounded-md text-[10px] font-bold ${isActive ? 'bg-[#1a1d24] text-white ring-1 ring-amber-400/50' : 'text-[#737d8c] hover:bg-[#1a1d24]/50 hover:text-white'}`
-                    : `w-full gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium ${isActive ? 'text-white bg-[#1a1d24]' : 'text-[#737d8c] hover:text-zinc-300 hover:bg-[#1a1d24]/50'}`
-                }`}
+                title={isSidebarMinimized ? "Admin Console" : undefined}
+                className={({isActive}) => isSidebarMinimized
+                  ? `flex items-center justify-center w-7 h-7 rounded-lg transition-all ${isActive ? 'bg-amber-500/20 ring-1 ring-amber-500 shadow-md shadow-amber-500/10 text-amber-400' : 'hover:bg-zinc-800/60 text-zinc-400'}`
+                  : `w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors tracking-wide ${isActive ? 'text-white bg-[#1a1d24]' : 'text-[#737d8c] hover:text-zinc-300 hover:bg-[#1a1d24]/50'}`
+                }
               >
                 {({isActive}) => isSidebarMinimized ? (
-                  <span>AC</span>
+                  <span className="text-[10px] font-bold">AC</span>
                 ) : (
                   <>
                     <div className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-amber-400' : 'bg-transparent'}`} />

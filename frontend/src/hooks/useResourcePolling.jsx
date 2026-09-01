@@ -1,53 +1,53 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { getDbState } from '../api/control';
+import { API_BASE_URL } from '../api/api';
 
 export function useResourcePolling(resources, setResources) {
   useEffect(() => {
-    const interval = setInterval(() => {
-      const transitioningResources = resources.filter(r =>
-        !['RUNNING', 'STOPPED', 'UNKNOWN', 'TERMINATED', 'ACTIVE', 'AVAILABLE'].includes(r.status.toUpperCase())
-      );
-  
-      if (transitioningResources.length === 0) return;
-      
-      const uniqueResources = Array.from(new Map(transitioningResources.map(r => [r.resource_id, r])).values());
-  
-      uniqueResources.forEach(async (r) => {
-        try {
-          const liveData = await getDbState(r.resource_id);
-  
-          if (liveData.status && liveData.status.toUpperCase() !== r.status.toUpperCase()) {
-            const newState = liveData.status.toUpperCase();
-            const oldState = r.status.toUpperCase();
-  
-            if (oldState === 'STOPPING' && newState === 'RUNNING') return;
-            if (oldState === 'STARTING' && newState === 'STOPPED') return;
-  
-            if (oldState !== 'RUNNING' && newState === 'RUNNING') {
-              toast.success(`Resource ${r.name || r.resource_id} is completely ON!`);
-              // Dispatch refresh to fetch any newly discovered child resources
+    // Connect to Server-Sent Events stream
+    const eventSource = new EventSource(`${API_BASE_URL}/control/stream`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.topic === 'resource_update') {
+          const { resource_id, status } = data.data;
+          
+          setResources(prev => {
+            const resource = prev.find(r => r.resource_id === resource_id);
+            if (!resource) return prev; // Ignore updates for resources not loaded in this view
+            
+            const oldState = resource.status.toUpperCase();
+            const newState = status.toUpperCase();
+            
+            if (oldState === newState) return prev;
+            
+            // Notify user of definitive state completion
+            if (oldState !== 'RUNNING' && (newState === 'RUNNING' || newState === 'AVAILABLE')) {
+              toast.success(`Resource ${resource.name || resource.resource_id} is completely ON!`);
               window.dispatchEvent(new Event('app:refresh-data'));
-            } else if (oldState !== 'STOPPED' && newState === 'STOPPED' && newState !== 'TERMINATED') {
-              toast.success(`Resource ${r.name || r.resource_id} is completely OFF!`);
-              // Dispatch refresh to remove any cleaned-up child resources
+            } else if (oldState !== 'STOPPED' && (newState === 'STOPPED' || newState === 'PAUSED')) {
+              toast.success(`Resource ${resource.name || resource.resource_id} is completely OFF!`);
               window.dispatchEvent(new Event('app:refresh-data'));
             }
-  
-            setResources(prev => prev.map(res =>
-              res.resource_id === r.resource_id ? { ...res, status: newState } : res
-            ));
-          }
-        } catch (e) {
-          console.error(`Failed to poll state for ${r.resource_id}`, e);
-          if (e.response && e.response.status === 404) {
-             // Resource has been deleted from the database (e.g. terminated EC2)
-             setResources(prev => prev.filter(res => res.resource_id !== r.resource_id));
-          }
-        }
-      });
-    }, 10000); // 10 seconds
 
-    return () => clearInterval(interval);
-  }, [resources, setResources]);
+            // Dynamically patch the specific resource in the table
+            return prev.map(res => 
+              res.resource_id === resource_id ? { ...res, status: newState } : res
+            );
+          });
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE message', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('SSE Error:', err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [setResources]);
 }

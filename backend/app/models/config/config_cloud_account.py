@@ -15,3 +15,4 @@ class ConfigCloudAccount(Base):
     last_sync_date = Column(String, nullable=True)
     active_modules = Column(String, default="inventory,control")
     last_error = Column(String, nullable=True)
+    parent_account_id = Column(Integer, nullable=True)

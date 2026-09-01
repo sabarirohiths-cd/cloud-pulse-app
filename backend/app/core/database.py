@@ -46,6 +46,11 @@ async def init_db():
             await conn.execute(text("ALTER TABLE config_cloud_accounts ADD COLUMN last_error VARCHAR"))
         except Exception:
             pass
+            
+        try:
+            await conn.execute(text("ALTER TABLE config_cloud_accounts ADD COLUMN parent_account_id INTEGER"))
+        except Exception:
+            pass
 
         await conn.run_sync(Base.metadata.create_all)
             
