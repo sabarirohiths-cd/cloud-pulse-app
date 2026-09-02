@@ -8,12 +8,12 @@ import { listResources, toggleVisibility, getFilterOptions } from '../../api/con
 import { listConfigs } from '../../api/config';
 import { useControlSync } from '../../utils/syncManager';
 import { buildResourceTree, buildResourceMap } from '../../utils/resource-tree';
-import { SettingsRow } from './SettingsRow';
+import { SettingsRow } from './sections/SettingsRow';
 import { NotificationBell } from '../../components/ui/NotificationBell';
 import { AwsRegionSelect } from '../../components/ui/AwsRegionSelect';
-import { ControlResourceDetailModal } from '../control/ControlResourceDetailModal';
+import { ControlResourceDetailModal } from '../control/sections/ControlResourceDetailModal';
 
-export default function AdminPage() {
+export default function ControlSyncVisPage() {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -410,10 +410,19 @@ export default function AdminPage() {
             </div>
 
             {(treeData.length === 0 && (loading || (offset === 0 && hasMore))) ? (
-              <div className="p-4 space-y-4">
-                <div className="h-16 bg-zinc-800/50 animate-pulse rounded-xl" />
-                <div className="h-16 bg-zinc-800/50 animate-pulse rounded-xl" />
-                <div className="h-16 bg-zinc-800/50 animate-pulse rounded-xl" />
+              <div className="p-2 space-y-1">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 border-b border-zinc-800/20">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-xl bg-zinc-800/50 animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="w-48 h-3.5 bg-zinc-800/50 rounded-md animate-pulse" />
+                        <div className="w-32 h-2.5 bg-zinc-800/30 rounded-md animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="w-11 h-6 rounded-full bg-zinc-800/50 animate-pulse" />
+                  </div>
+                ))}
               </div>
             ) : treeData.length > 0 ? (
               <Virtuoso

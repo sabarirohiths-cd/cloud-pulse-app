@@ -4,28 +4,8 @@ import { toast } from 'sonner';
 import { listConfigs, createConfig, verifyConfig, deleteConfig, updateAutoSync, editConfig, updateCredentials } from '../../api/config';
 import { EmptyState } from '../../components/ui/EmptyState';
 
-const ProviderLogo = ({ provider, verified, className = "h-5 w-auto max-w-[32px]" }) => {
-  const isGrayscale = !verified;
-  if (provider === 'aws') return <img src="/aws-logo.svg" alt="AWS" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
-  if (provider === 'azure') return <img src="/azure-logo.svg" alt="Azure" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
-  if (provider === 'gcp') return <img src="/gcp-logo.svg" alt="GCP" className={`${className} object-contain ${isGrayscale ? 'grayscale opacity-40' : ''}`} />;
-  return <Cloud className={`h-5 w-5 ${isGrayscale ? 'text-zinc-600' : 'text-blue-400'}`} />;
-};
-
-const TIMEZONES = [
-  { label: 'IST (Asia/Kolkata)', value: 'Asia/Kolkata' },
-  { label: 'UTC', value: 'UTC' },
-  { label: 'EST (America/New_York)', value: 'America/New_York' },
-  { label: 'CST (America/Chicago)', value: 'America/Chicago' },
-  { label: 'MST (America/Denver)', value: 'America/Denver' },
-  { label: 'PST (America/Los_Angeles)', value: 'America/Los_Angeles' },
-  { label: 'GMT (Europe/London)', value: 'Europe/London' },
-  { label: 'CET (Europe/Paris)', value: 'Europe/Paris' },
-  { label: 'JST (Asia/Tokyo)', value: 'Asia/Tokyo' },
-  { label: 'AEST (Australia/Sydney)', value: 'Australia/Sydney' },
-  { label: 'GST (Asia/Dubai)', value: 'Asia/Dubai' },
-  { label: 'SGT (Asia/Singapore)', value: 'Asia/Singapore' }
-];
+import { SyncSettingsModal } from './sections/SyncSettingsModal';
+import { ProviderLogo } from '../../components/ui/ProviderLogo';
 
 const AVAILABLE_MODULES = [
   { id: 'inventory', label: 'Inventory', icon: Server, color: 'text-teal-400', border: 'border-teal-400/30', bg: 'bg-teal-400/10' },
@@ -42,6 +22,9 @@ const initialProviderForm = {
 
 export default function ConfigPage() {
   const [configs, setConfigs] = useState([]);
+  const [activeViewProviderIndex, setActiveViewProviderIndex] = useState(0);
+  const providerList = ['aws', 'azure', 'gcp'];
+  
   const [showForm, setShowForm] = useState(false);
   const [providerForm, setProviderForm] = useState(initialProviderForm);
   const [saving, setSaving] = useState(false);
@@ -187,38 +170,68 @@ export default function ConfigPage() {
     }
   };
 
+  const sortedConfigs = [
+    ...configs.filter(c => c.provider.toLowerCase() === 'aws'),
+    ...configs.filter(c => c.provider.toLowerCase() === 'azure'),
+    ...configs.filter(c => c.provider.toLowerCase() === 'gcp')
+  ];
+
   return (
-    <div className="space-y-6 w-full pb-10 relative">
+    <div className="space-y-6 w-full pb-32 relative">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-8">
+        
+        {/* Left: Title */}
         <div>
           <h1 className="text-xl font-bold tracking-tight">Cloud Configuration</h1>
           <p className="text-sm text-zinc-500 mt-1">Connect AWS, Azure, or GCP credentials to enable discovery and automation.</p>
         </div>
-        <button onClick={() => { setShowForm(true); setProviderForm(initialProviderForm); setEditingConfigId(null); }} className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-900/20">
-          <Plus className="h-4 w-4" /> Add Connection
-        </button>
+        
+        {/* Right: Actions & Switcher */}
+        <div className="flex items-center gap-4">
+          <div className="inline-flex items-center bg-zinc-900/50 p-1 rounded-lg border border-zinc-800/80 shadow-sm">
+            {providerList.map((p, idx) => (
+              <button
+                key={p}
+                onClick={() => setActiveViewProviderIndex(idx)}
+                className={`px-5 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-md transition-all duration-200 ${
+                  activeViewProviderIndex === idx
+                    ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/10'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <button onClick={() => { setShowForm(true); setProviderForm({...initialProviderForm, activeProvider: providerList[activeViewProviderIndex]}); setEditingConfigId(null); }} className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-900/20">
+            <Plus className="h-4 w-4" /> Add Connection
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}
-      {configs.length === 0 ? (
-        <EmptyState
-          icon={Cloud}
-          message="No cloud connections active. Click 'Add Connection' to onboard your first cloud provider."
-          height="h-[400px]"
-        />
-      ) : (
-        <div className="space-y-8 animate-in fade-in duration-500">
-          {['aws', 'azure', 'gcp'].map(providerName => {
-            const providerConfigs = configs.filter(c => c.provider.toLowerCase() === providerName);
-            if (providerConfigs.length === 0) return null;
+      {(() => {
+        const currentProvider = providerList[activeViewProviderIndex];
+        const providerConfigs = configs.filter(c => c.provider.toLowerCase() === currentProvider);
+        
+        if (providerConfigs.length === 0) {
+          return (
+            <EmptyState
+              icon={Cloud}
+              message={`No active connections for ${currentProvider.toUpperCase()}. Click 'Add Connection' to get started.`}
+              height="h-[400px]"
+            />
+          );
+        }
 
-            return (
-              <div key={providerName} className="space-y-3">
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500">
+              <div key={currentProvider} className="space-y-3">
                 {/* Section Header */}
                 <h2 className="text-[12px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2.5">
-                  <ProviderLogo provider={providerName} verified={true} className="h-4 w-auto max-w-[24px]" />
-                  {providerName === 'aws' ? 'Amazon Web Services' : providerName === 'azure' ? 'Microsoft Azure' : 'Google Cloud'}
+                  {currentProvider === 'aws' ? 'Amazon Web Services' : currentProvider === 'azure' ? 'Microsoft Azure' : 'Google Cloud'}
                   <span className="ml-2 px-2 py-0.5 rounded-full bg-zinc-800/80 text-[10px] text-zinc-500 border border-zinc-700/50">
                     {providerConfigs.length} Hub{providerConfigs.length !== 1 && 's'}
                   </span>
@@ -238,15 +251,15 @@ export default function ConfigPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/50">
-                      {providerConfigs.map(c => (
+                      {providerConfigs.map((c, idx) => {
+                        const isNearBottom = idx >= providerConfigs.length - 2 && providerConfigs.length > 1;
+                        return (
                         <tr key={c.id} className="hover:bg-zinc-800/30 transition-colors group">
 
                           {/* Column 1: Account / Hub */}
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner">
-                                <Cloud className="w-4 h-4 text-zinc-500" />
-                              </div>
+                            <div className="flex items-center gap-4">
+                              <ProviderLogo provider={c.provider.toLowerCase()} verified={c.verified} className="h-6 w-auto max-w-[24px] shrink-0" />
                               <div className="min-w-0">
                                 <div className="text-[13px] font-semibold text-zinc-200 truncate">{c.account_name}</div>
                                 <div className="flex items-center gap-2 mt-1">
@@ -330,7 +343,7 @@ export default function ConfigPage() {
                               </button>
 
                               {actionMenuOpen === c.id && (
-                                <div className="absolute right-0 mt-1 w-48 bg-[#1a1d24] border border-zinc-700 rounded-lg shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <div className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-[#1a1d24] border border-zinc-700 rounded-lg shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100`}>
                                   <button onClick={() => { setActionMenuOpen(null); handleVerify(c.id); }} className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2 transition-colors">
                                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Verify Connection
                                   </button>
@@ -365,15 +378,14 @@ export default function ConfigPage() {
                           </td>
 
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                   </table>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Modal Form */}
       {showForm && (
@@ -491,8 +503,8 @@ export default function ConfigPage() {
                     <div className="space-y-3 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/80">
                       <div><label className="text-[10px] text-zinc-500 block mb-1">Service Account Private Key JSON</label>
                         <textarea value={providerForm.gcp.service_account_json} onChange={e => setProviderForm({ ...providerForm, gcp: { ...providerForm.gcp, service_account_json: e.target.value } })} className="w-full h-40 text-[12px] bg-zinc-950 border border-zinc-700/80 rounded-lg px-2 py-1.5 text-white font-mono resize-none focus:border-blue-500 outline-none" placeholder={`{
-  "type": "service_account",
-  "project_id": "...",
+                        "type": "service_account",
+                        "project_id": "...",
   "private_key": "..."
 }`} /></div>
                     </div>
@@ -545,42 +557,14 @@ export default function ConfigPage() {
       )}
 
       {/* Sync Modal Overlay */}
-      {showSyncModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSyncModal(false)} />
-          <div className="relative w-[400px] bg-[#12141a] border border-zinc-800 rounded-xl shadow-2xl p-6 animate-in zoom-in-95 duration-100">
-            <h3 className="text-sm font-semibold text-white mb-1">Auto Sync Settings</h3>
-            <p className="text-[12px] text-zinc-400 mb-6">Schedule automatic background syncing for this cloud connection.</p>
-
-            <div className="space-y-5">
-              <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                <button onClick={() => setSyncForm({ ...syncForm, enabled: false })} className={`flex-1 py-1.5 text-[12px] font-medium rounded-md transition-colors ${!syncForm.enabled ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>Disabled</button>
-                <button onClick={() => setSyncForm({ ...syncForm, enabled: true })} className={`flex-1 py-1.5 text-[12px] font-medium rounded-md transition-colors ${syncForm.enabled ? 'bg-blue-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>Enabled</button>
-              </div>
-
-              {syncForm.enabled && (
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <label className="text-[10px] text-zinc-500 block mb-1">Time</label>
-                    <input type="time" value={syncForm.time} onChange={e => setSyncForm({ ...syncForm, time: e.target.value })} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white focus:border-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-zinc-500 block mb-1">Timezone</label>
-                    <select value={syncForm.timezone} onChange={e => setSyncForm({ ...syncForm, timezone: e.target.value })} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white focus:border-blue-500 outline-none">
-                      {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 justify-end mt-8">
-              <button onClick={() => setShowSyncModal(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors">Cancel</button>
-              <button onClick={() => handleSaveSync(syncConfigId)} className="px-5 py-2 text-[13px] font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-900/20 transition-colors">Save Settings</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SyncSettingsModal
+        show={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        syncForm={syncForm}
+        setSyncForm={setSyncForm}
+        onSave={handleSaveSync}
+        configId={syncConfigId}
+      />
 
       {/* Credentials Modal */}
       {showCredsModal && (

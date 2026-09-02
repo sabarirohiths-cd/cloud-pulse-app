@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Power, Server, Database } from 'lucide-react';
-import { ScheduleCalendar } from './components/ScheduleCalendar';
+import { ScheduleCalendar } from './ScheduleCalendar';
 
 export default function ActionModal({ isOpen, onClose, mode, resource, onConfirm }) {
   const [automationEnabled, setAutomationEnabled] = useState(true);

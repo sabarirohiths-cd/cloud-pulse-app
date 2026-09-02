@@ -7,7 +7,6 @@ export function Sidebar() {
   const [provider, setProvider] = useState(localStorage.getItem('pulse_control_provider') || 'AWS');
   const [verifiedConfigs, setVerifiedConfigs] = useState([]);
   const [controlExpanded, setControlExpanded] = useState(true);
-  const [adminExpanded, setAdminExpanded] = useState(true);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -185,49 +184,18 @@ export function Sidebar() {
             </div>
           )}
         </div>
-        <div className="relative group/admin mt-auto">
-          <button 
-            onClick={() => setAdminExpanded(!adminExpanded)}
-            className={`w-full flex items-center ${isSidebarMinimized ? 'justify-center' : 'justify-between'} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${location.pathname.startsWith('/admin') ? 'text-white border-amber-400' : 'text-[#8b949e] hover:text-white border-transparent'} ${isSidebarMinimized && adminExpanded ? 'bg-[#1a1d24] rounded-t-xl' : location.pathname.startsWith('/admin') ? 'bg-[#1a1d24] rounded-lg' : 'hover:bg-[#1a1d24] rounded-lg'}`}
-          >
-            <div className={`flex items-center ${isSidebarMinimized ? 'w-full justify-center gap-1' : 'gap-3'}`}>
-              <Settings className={`h-4 w-4 shrink-0 transition-colors ${location.pathname.startsWith('/admin') ? 'text-amber-400' : 'text-[#8b949e] group-hover/admin:text-zinc-300'}`} />
-              {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Admin</span>}
-            </div>
-            {!isSidebarMinimized && (
-              <div className="text-[#8b949e] hover:text-white transition-colors">
-                {adminExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-              </div>
+        <div className="relative group/discovery mt-auto pb-4">
+          <NavLink to="/control-sync-vis" className={({isActive}) => `flex items-center gap-3 ${isSidebarMinimized ? 'justify-center' : ''} px-3 py-2.5 text-[13px] font-medium transition-colors border-l-2 ${isActive ? 'bg-[#1a1d24] text-white border-amber-400 rounded-lg' : 'text-[#8b949e] hover:text-white hover:bg-[#1a1d24] border-transparent rounded-lg'}`}>
+            {({isActive}) => (
+              <>
+                <Settings className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-amber-400' : 'text-[#8b949e] group-hover/discovery:text-zinc-300'}`} />
+                {!isSidebarMinimized && <span className="whitespace-nowrap overflow-hidden">Control - Sync & Vis</span>}
+              </>
             )}
-          </button>
-          
-          {/* Custom Hover Tooltip */}
+          </NavLink>
           {isSidebarMinimized && (
-            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/admin:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
-              Admin
-            </div>
-          )}
-          
-          {/* Inline Submenu */}
-          {adminExpanded && (
-            <div className={isSidebarMinimized ? `flex flex-col items-center gap-1.5 bg-[#1a1d24] rounded-b-xl pb-2.5 pt-1 w-full border-l-2 ${location.pathname.startsWith('/admin') ? 'border-amber-400' : 'border-transparent'}` : 'mt-1 space-y-1 ml-6 border-l border-zinc-800/60 pl-3'}>
-              <NavLink
-                to="/admin"
-                title={isSidebarMinimized ? "Admin Console" : undefined}
-                className={({isActive}) => isSidebarMinimized
-                  ? `flex items-center justify-center w-7 h-7 rounded-lg transition-all ${isActive ? 'bg-amber-500/20 ring-1 ring-amber-500 shadow-md shadow-amber-500/10 text-amber-400' : 'hover:bg-zinc-800/60 text-zinc-400'}`
-                  : `w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors tracking-wide ${isActive ? 'text-white bg-[#1a1d24]' : 'text-[#737d8c] hover:text-zinc-300 hover:bg-[#1a1d24]/50'}`
-                }
-              >
-                {({isActive}) => isSidebarMinimized ? (
-                  <span className="text-[10px] font-bold">AC</span>
-                ) : (
-                  <>
-                    <div className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-amber-400' : 'bg-transparent'}`} />
-                    Admin Console
-                  </>
-                )}
-              </NavLink>
+            <div className="absolute left-[72px] top-1/2 -translate-y-1/2 ml-2 hidden group-hover/discovery:block bg-[#15181e] text-white text-xs font-medium py-1.5 px-3 rounded-md shadow-xl border border-zinc-800 whitespace-nowrap z-[110]">
+              Control - Sync & Vis
             </div>
           )}
         </div>

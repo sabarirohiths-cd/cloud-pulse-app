@@ -1,5 +1,5 @@
 import React from 'react';
-import { FilterBar } from '../../components/ui/FilterBar';
+import { FilterBar } from '../../../components/ui/FilterBar';
 
 export default function TopFilters({ topFilters, setTopFilters, selectedAccount, setSelectedAccount, accounts, availableRegions, availableLinked, availableTags }) {
   const uniqueProviders = [...new Set(accounts.map(a => (a.provider || '').toUpperCase()))].sort();

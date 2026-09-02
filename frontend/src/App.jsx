@@ -5,7 +5,7 @@ import { Toaster } from './components/ui/Toaster';
 import InventoryPage from './pages/inventory/InventoryPage';
 import ConfigPage from './pages/config/ConfigPage';
 import ControlPage from './pages/control/ControlPage';
-import AdminPage from './pages/admin/AdminPage';
+import ControlSyncVisPage from './pages/control-sync-vis/ControlSyncVisPage';
 import { Sidebar } from './components/layout/Sidebar';
 
 export default function App() {
@@ -22,7 +22,7 @@ export default function App() {
             <Route path="/control" element={<ControlPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/config" element={<ConfigPage />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/control-sync-vis" element={<ControlSyncVisPage />} />
           </Routes>
         </main>
       </div>

@@ -2,9 +2,9 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, X, Globe, Tag as TagIcon, History } from 'lucide-react';
-import { formatDynamicLocalTime } from '../../utils/dateFormatter';
-import { formatType, formatIdentifier, formatName } from '../../utils/ui-utils';
-import { EmptyState } from '../../components/ui/EmptyState';
+import { formatDynamicLocalTime } from '../../../utils/dateFormatter';
+import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 const colorizeJson = (jsonObj) => {
   if (!jsonObj) return '';

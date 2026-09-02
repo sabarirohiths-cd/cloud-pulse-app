@@ -2,8 +2,8 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, Database, X, Globe, Tag as TagIcon, LayoutTemplate } from 'lucide-react';
-import { formatIdentifier, formatName } from '../../utils/ui-utils';
-import { EmptyState } from '../../components/ui/EmptyState';
+import { formatIdentifier, formatName } from '../../../utils/ui-utils';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 export function ControlResourceDetailModal({ resource, onClose }) {
   if (!resource) return null;
