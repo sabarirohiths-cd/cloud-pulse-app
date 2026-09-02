@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { listResources, togglePower, saveSchedule, getDbState, getControlSummary } from '../../../api/control';
 import ActionModal from '../sections/ActionModal';
 import { ControlResourceDetailModal } from '../sections/ControlResourceDetailModal';
-import { buildResourceTree } from '../../../utils/resource-tree';
+import { buildResourceTree } from '../../../services/resource-tree';
 import { ResourceTableRow } from '../sections/ResourceTableRow';
 import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
 import { useResourcePolling } from '../../../hooks/useResourcePolling';

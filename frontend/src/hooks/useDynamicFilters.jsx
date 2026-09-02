@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getStrategy } from '../utils/cloud-strategies';
+import { getStrategy } from '../services/cloud-strategies';
 
 /**
  * Custom hook to manage complex cascading filter logic across Control and Inventory modules.

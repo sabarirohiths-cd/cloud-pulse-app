@@ -6,11 +6,11 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { toast } from 'sonner';
 import { listResources, toggleVisibility, getFilterOptions } from '../../api/control';
 import { listConfigs } from '../../api/config';
-import { useControlSync } from '../../utils/syncManager';
-import { buildResourceTree, buildResourceMap } from '../../utils/resource-tree';
+import { useControlSync } from '../../services/syncManager';
+import { buildResourceTree, buildResourceMap } from '../../services/resource-tree';
 import { SettingsRow } from './sections/SettingsRow';
-import { NotificationBell } from '../../components/ui/NotificationBell';
-import { AwsRegionSelect } from '../../components/ui/AwsRegionSelect';
+import { NotificationBell } from '../../components/layout/NotificationBell';
+import { AwsRegionSelect } from './sections/AwsRegionSelect';
 import { ControlResourceDetailModal } from '../control/sections/ControlResourceDetailModal';
 
 export default function ControlSyncVisPage() {

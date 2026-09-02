@@ -6,7 +6,7 @@ import { FilterBar } from '../../../components/ui/FilterBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { getResources, getAdvancedSummary } from '../../../api/inventory';
-import { getStrategy } from '../../../utils/cloud-strategies';
+import { getStrategy } from '../../../services/cloud-strategies';
 import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
 
 export function ResourcesTab({ filter, setFilter, dynamicGroups, dynamicTypes, dynamicRegions, setSelectedResource, provider, account, topFilters, syncRefreshTrigger }) {

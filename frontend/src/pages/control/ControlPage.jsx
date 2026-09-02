@@ -6,7 +6,7 @@ import { OverviewTab } from './tabs/OverviewTab';
 import { ActivityLogTab } from './tabs/ActivityLogTab';
 import { ResourcesTab } from './tabs/ResourcesTab';
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
-import { NotificationBell } from '../../components/ui/NotificationBell';
+import { NotificationBell } from '../../components/layout/NotificationBell';
 
 export default function ControlPage() {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('pulse_control_active_tab') || 'overview');

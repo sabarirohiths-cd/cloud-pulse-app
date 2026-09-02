@@ -7,7 +7,7 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 
 import { getResources, getAdvancedSummary } from '../../../api/inventory';
-import { getStrategy } from '../../../utils/cloud-strategies';
+import { getStrategy } from '../../../services/cloud-strategies';
 import { formatType, formatIdentifier, formatName } from '../../../utils/ui-utils';
 import { useDynamicFilters } from '../../../hooks/useDynamicFilters';
 

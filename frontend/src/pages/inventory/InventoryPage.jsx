@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAdvancedSummary, getTrend, wipeDatabase, getFilterOptions } from '../../api/inventory';
-import { useInventorySync } from '../../utils/syncManager';
+import { useInventorySync } from '../../services/syncManager';
 import { apiClient } from '../../api/api';
 import { OverviewTab as Overview } from './tabs/OverviewTab';
 import { ChangesTab as Changes } from './tabs/ChangesTab';
@@ -10,8 +10,8 @@ import { ResourcesTab as Resources } from './tabs/ResourcesTab';
 import { DeletedTab as Deleted } from './tabs/DeletedTab';
 import { ResourceDetailModal } from './sections/ResourceDetailModal';
 import TopFilters from './sections/TopFilters';
-import { getStrategy } from '../../utils/cloud-strategies';
-import { NotificationBell } from '../../components/ui/NotificationBell';
+import { getStrategy } from '../../services/cloud-strategies';
+import { NotificationBell } from '../../components/layout/NotificationBell';
 import { ScrollToTopButton } from '../../components/ui/ScrollToTopButton';
 
 export default function InventoryPage() {

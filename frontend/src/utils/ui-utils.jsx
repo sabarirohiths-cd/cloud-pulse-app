@@ -1,4 +1,4 @@
-import { getStrategy } from './cloud-strategies';
+import { getStrategy } from '../services/cloud-strategies';
 
 export function formatType(rawType, provider = 'aws', nativeId = null) {
   return getStrategy(provider).formatType(rawType, nativeId);
